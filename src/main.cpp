@@ -113,7 +113,7 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             }
 
             // :: Decode next utf-8 and add it to row
-            auto width = utf8_simple2(buf + bufidx, &cp);
+            auto width = utf8_simple2(buf + bufidx, &cp, sizeof(buf) - bufidx);
             Serial.println(width);
 
             // Mark bufidx==0 with @

@@ -9,12 +9,6 @@
 #include <stdint.h>
 
 /* Results of Disk Functions */
-typedef enum {
-    UTF8_OK = 0,   // 0: Function succeeded
-    UTF8_INVALID,  // 1: Invalid byte sequence to decode a codepoint
-                   // next pointer is advanced
-    UTF8_EOF,      // 2: Need more input
-} UTF8_RESULT;
 
 // inputlen tells us how many bytes we can read from input `s` so that we can
 // communicate that we need more bytes.
@@ -53,6 +47,72 @@ typedef enum {
 //     if (*cp >= 0xd800 && *cp <= 0xdfff) *cp = -1;  // surrogate half
 //     return next;
 // }
+
+typedef enum {
+    UTF8_OK = 0,   // 0: Function succeeded
+    UTF8_INVALID,  // 1: Invalid byte sequence to decode a codepoint
+                   // next pointer is advanced
+    UTF8_EOF,  // 2: Need more input, width will be how long the valid sequence
+               // was until we hit EOF
+} UTF8_RESULT;
+
+typedef struct DecodeResult {
+    UTF8_RESULT evt;
+    uint8_t width;
+    long cp;  // -1 if n/a
+} DecodeResult;
+
+DecodeResult utf8_simple3(uint8_t *s, uint16_t inputlen) {
+    if (inputlen < 1) {
+        return DecodeResult{.evt = UTF8_EOF, .width = 0, .cp = -1};
+    } else if (s[0] < 0x80) {  // inputlen is >= 1
+        return DecodeResult{.evt = UTF8_OK, .width = 1, .cp = s[0]};
+    } else if ((s[0] & 0xe0) == 0xc0) {
+        if (inputlen < 2) {
+            return DecodeResult{.evt = UTF8_EOF, .width = 1, .cp = -1};
+        }
+        if ((s[1] & 0xc0) != 0x80) {
+            return DecodeResult{.evt = UTF8_INVALID, .width = 2, .cp = -1};
+        }
+        return DecodeResult{.evt = UTF8_OK,
+                            .width = 2,
+                            .cp = ((uint32_t)(s[0] & 0x1f) << 6) |
+                                  ((uint32_t)(s[1] & 0x3f) << 0)};
+    } else if ((s[0] & 0xf0) == 0xe0) {
+        if (inputlen < 3) {
+            return DecodeResult{.evt = UTF8_EOF, .width = 2, .cp = -1};
+        }
+        if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80) {
+            return DecodeResult{.evt = UTF8_INVALID, .width = 3, .cp = -1};
+        }
+        return DecodeResult{.evt = UTF8_OK,
+                            .width = 3,
+                            .cp = ((uint32_t)(s[0] & 0x0f) << 12) |
+                                  ((uint32_t)(s[1] & 0x3f) << 6) |
+                                  ((uint32_t)(s[2] & 0x3f) << 0)};
+
+    } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
+        if (inputlen < 4) {
+            return DecodeResult{.evt = UTF8_EOF, .width = 3, .cp = -1};
+        }
+        if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80 ||
+            (s[3] & 0xc0) != 0x80) {
+            return DecodeResult{.evt = UTF8_INVALID, .width = 4, .cp = -1};
+        }
+        return DecodeResult{.evt = UTF8_OK,
+                            .width = 4,
+                            .cp = ((uint32_t)(s[0] & 0x07) << 18) |
+                                  ((uint32_t)(s[1] & 0x3f) << 12) |
+                                  ((uint32_t)(s[2] & 0x3f) << 6) |
+                                  ((uint32_t)(s[3] & 0x3f) << 0)};
+
+    } else {
+        return DecodeResult{.evt = UTF8_INVALID, .width = 1, .cp = -1};
+    }
+    // invalid surrogate half
+    if (*c >= 0xd800 && *c <= 0xdfff) *c = -1;  // surrogate half
+    return width;
+}
 
 uint8_t utf8_simple2(uint8_t *s, uint32_t *c) {
     unsigned char width;
