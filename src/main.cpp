@@ -14,9 +14,9 @@ static void print_fresult(FRESULT rc) {
     static const char str[8][15] = {
         "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
         "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
-    char buf[9 + 14];
-    sprintf(buf, "FRESULT: %s", str[rc]);
-    Serial.println(buf);
+    // char buf[30];
+    // sprintf(buf, "FRESULT: %s", str[rc]);
+    Serial.println(str[rc]);
 }
 
 bool isTxtFile(FILINFO *f) {
@@ -29,11 +29,17 @@ bool isTxtFile(FILINFO *f) {
 #define WIDTH 400
 #define HEIGHT 300
 #define CHARS_PER_ROW WIDTH / CHAR_WIDTH
-#define ROWS_PER_PAGE HEIGHT / (CHAR_HEIGHT + LINE_SPACING)
-#define CHARS_PER_PAGE CHARS_PER_ROW *ROWS_PER_PAGE
+#define ROWS_PER_PAGE HEIGHT / CHAR_HEIGHT
+#define CHARS_PER_PAGE (CHARS_PER_ROW * ROWS_PER_PAGE)
 
 #define TEXTROW_BUFSIZE CHAR_HEIGHT *WIDTH / CHAR_WIDTH
 uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
+
+struct PageResult {
+    uint16_t bytesread;
+    bool eof;
+    FRESULT fres;
+};
 
 void textrow_clear(uint8_t *frame) {
     for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
@@ -74,12 +80,78 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
     }
 }
 
+PageResult draw_page(uint32_t offset, uint8_t *textrow) {
+    PageResult p = {
+        .bytesread = 0,
+        .eof = false,
+        .fres = FR_OK,
+    };
+    UINT readcount;
+    FRESULT res;
+    uint8_t buf[64];                // holds bytes from ebook
+    uint32_t bufidx = sizeof(buf);  // trigger initial load
+    long count = 0;                 // utf8 glyphs decoded so far
+    long bytesdecoded = 0;          // bytes decoded so far from the book
+    bool bookover = false;          // becomes true when no more to read
+    uint32_t cp;                    // decoded code point
+
+    p.fres = pf_lseek(offset);
+    if (p.fres != FR_OK) {
+        return p;
+    }
+
+    bool broke = false;
+    for (int y = 0; y < ROWS_PER_PAGE; y++) {
+        textrow_clear(textrow);
+        for (int x = 0; x < CHARS_PER_ROW; x++) {
+            if (broke && x < 4) {
+                textrow_draw_unicode_point(textrow, ' ', x);
+                continue;
+            }
+            broke = false;
+            // load from book bytes if we need to
+            if (bufidx >= sizeof(buf)) {
+                res = pf_read(buf, sizeof(buf), &readcount);
+                if (res != FR_OK) {
+                    p.fres = res;
+                    return p;
+                }
+                bufidx = 0;
+                if (readcount < sizeof(buf)) {
+                    // bookover = true;
+                    p.eof = true;
+                    buf[readcount] = '\0';
+                }
+            }
+            // :: Decode next utf-8 and add it to row
+            auto next = utf8_simple(buf + bufidx, &cp);
+            bufidx = (next - buf);
+            p.bytesread += (next - buf - bufidx);
+            Serial.println(bufidx);
+            // TODO: skip invalid utf8 (cp==-1)
+            count++;
+            // Serial.print(F("Count: "));
+            // Serial.println(count);
+            if (cp == '\n') {
+                broke = true;
+                break;
+            }
+            textrow_draw_unicode_point(textrow, cp, x);
+        }
+        epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
+    }
+    epd::refreshDisplay();
+
+    p.fres = FR_OK;
+    return p;
+}
+
 void setup() {
     FATFS fs;
     FRESULT res;
     DIR dir;
     FILINFO fno;
-    uint8_t buf[128];  // This holds bytes from the ebook
+    // uint8_t buf[128];  // This holds bytes from the ebook
     UINT readcount;
 
     Serial.begin(9600);
@@ -138,6 +210,8 @@ void setup() {
     }
 
     Serial.println(F("Found ebook."));
+    // while (true)
+    //     ;
 
     // Open file
     res = pf_open(fno.fname);
@@ -147,39 +221,51 @@ void setup() {
             ;
     }
 
-    res = pf_read(buf, sizeof(buf), &readcount);
-    if (res) {
-        print_fresult(res);
-        while (1)
-            ;
-    }
+    // res = pf_read(buf, sizeof(buf), &readcount);
+    // if (res) {
+    //     print_fresult(res);
+    //     while (1)
+    //         ;
+    // }
 
-    if (readcount != sizeof(buf)) {
-        Serial.println(F("ebook ended prematurely"));
-        while (1)
+    // if (readcount != sizeof(buf)) {
+    //     Serial.println(F("ebook ended prematurely"));
+    //     while (1)
+    //         ;
+    // }
+
+    PageResult p = draw_page(0, textrow);
+    if (p.fres != FR_OK) {
+        // print_fresult(p.fres);
+        Serial.println("FUCK");
+        while (true)
             ;
     }
+    Serial.print("PageResult.bytesdecoded: ");
+    // Serial.println(p.bytesread);
+    // Serial.print("fptr is now: ");
+    // Serial.println(fs.fptr);
 
     // Decode utf-8
-    textrow_clear(textrow);
-    auto *next = buf;  // our place in the buf
-    long count = 0;
-    uint8_t *end = buf + sizeof(buf) - 1;
-    uint32_t cp;
-    while (next < end) {
-        next = utf8_simple(next, &cp);
-        count++;
-        Serial.println(cp);
-        if (cp < 0) {
-            Serial.println(F("cp was <0."));
-            continue;
-        }
-        textrow_draw_unicode_point(textrow, cp, count - 1);
-    }
-    Serial.print("fptr is now: ");
-    Serial.println(fs.fptr);
-    epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
-    epd::refreshDisplay();
+    // textrow_clear(textrow);
+    // auto *next = buf;  // our place in the buf
+    // long count = 0;
+    // uint8_t *end = buf + sizeof(buf) - 1;
+    // uint32_t cp;
+    // while (next < end) {
+    //     next = utf8_simple(next, &cp);
+    //     count++;
+    //     Serial.println(cp);
+    //     if (cp < 0) {
+    //         Serial.println(F("cp was <0."));
+    //         continue;
+    //     }
+    //     textrow_draw_unicode_point(textrow, cp, count - 1);
+    // }
+    // Serial.print("fptr is now: ");
+    // Serial.println(fs.fptr);
+    // epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
+    // epd::refreshDisplay();
 
     // sprintf(buf, "%s", buf);
     // Serial.println(buf);

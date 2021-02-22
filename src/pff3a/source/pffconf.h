@@ -11,7 +11,7 @@
 
 #define PF_USE_READ 1  /* pf_read() function */
 #define PF_USE_DIR 1   /* pf_opendir() and pf_readdir() function */
-#define PF_USE_LSEEK 0 /* pf_lseek() function */
+#define PF_USE_LSEEK 1 /* pf_lseek() function */
 #define PF_USE_WRITE 0 /* pf_write() function */
 
 #define PF_FS_FAT12 0 /* FAT12 */
