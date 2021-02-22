@@ -248,6 +248,8 @@ void setup() {
     //         ;
     // }
 
+    auto byteloc = 0;
+
     Serial.print("fptr is now: ");
     Serial.println(fs.fptr);
     PageResult p = draw_page(&fs, fs.fptr, textrow);
@@ -256,6 +258,7 @@ void setup() {
         while (true)
             ;
     }
+    byteloc += p.bytesread;
     Serial.print("PageResult.bytesdecoded: ");
     Serial.println(p.bytesread);
     Serial.print("fptr is now: ");
@@ -264,11 +267,16 @@ void setup() {
     // fptr = 640
     // bytesdec = 582
     delay(2000);
-    p = draw_page(&fs, fs.fptr - (fs.fptr - p.bytesread), textrow);
+    p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
+    byteloc += p.bytesread;
     Serial.print("PageResult.bytesdecoded: ");
     Serial.println(p.bytesread);
     Serial.print("fptr is now: ");
     Serial.println(fs.fptr);
+
+    delay(2000);
+    p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
+    byteloc += p.bytesread;
 
     // Decode utf-8
     // textrow_clear(textrow);
