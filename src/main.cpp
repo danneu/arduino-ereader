@@ -16,7 +16,7 @@ static void print_fresult(FRESULT rc) {
         "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
     // char buf[30];
     // sprintf(buf, "FRESULT: %s", str[rc]);
-    Serial.println(str[rc]);
+    // Serial.println(str[rc]);
 }
 
 bool isTxtFile(FILINFO *f) {
@@ -80,7 +80,7 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
     }
 }
 
-PageResult draw_page(uint32_t offset, uint8_t *textrow) {
+PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     PageResult p = {
         .bytesread = 0,
         .eof = false,
@@ -95,9 +95,11 @@ PageResult draw_page(uint32_t offset, uint8_t *textrow) {
     bool bookover = false;          // becomes true when no more to read
     uint32_t cp;                    // decoded code point
 
-    p.fres = pf_lseek(offset);
-    if (p.fres != FR_OK) {
-        return p;
+    if (fs->fptr != offset) {
+        p.fres = pf_lseek(offset);
+        if (p.fres != FR_OK) {
+            return p;
+        }
     }
 
     bool broke = false;
@@ -127,10 +129,10 @@ PageResult draw_page(uint32_t offset, uint8_t *textrow) {
             // bufidx = 6
             // next = 9
             // :: Decode next utf-8 and add it to row
-            auto next = utf8_simple(buf + bufidx, &cp);
+            auto width = utf8_simple2(buf + bufidx, &cp);
             // new idx - old idx
-            p.bytesread += (next - buf - bufidx);
-            bufidx = (next - buf);
+            p.bytesread += width;
+            bufidx += width;
             // Serial.println(bufidx);
             // TODO: skip invalid utf8 (cp==-1)
             count++;
@@ -140,11 +142,19 @@ PageResult draw_page(uint32_t offset, uint8_t *textrow) {
                 broke = true;
                 break;
             }
-            textrow_draw_unicode_point(textrow, cp, x);
+            if (bufidx == 0) {
+                textrow_draw_unicode_point(textrow, '@', x);
+
+            } else {
+                textrow_draw_unicode_point(textrow, cp, x);
+            }
         }
         epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
     epd::refreshDisplay();
+
+    // Serial.print("BUfidx ended at: ");
+    Serial.write(bufidx);
 
     p.fres = FR_OK;
     return p;
@@ -240,12 +250,19 @@ void setup() {
 
     Serial.print("fptr is now: ");
     Serial.println(fs.fptr);
-    PageResult p = draw_page(0, textrow);
+    PageResult p = draw_page(&fs, fs.fptr, textrow);
     if (p.fres != FR_OK) {
         // print_fresult(p.fres);
         while (true)
             ;
     }
+    Serial.print("PageResult.bytesdecoded: ");
+    Serial.println(p.bytesread);
+    Serial.print("fptr is now: ");
+    Serial.println(fs.fptr);
+
+    delay(2000);
+    p = draw_page(&fs, fs.fptr, textrow);
     Serial.print("PageResult.bytesdecoded: ");
     Serial.println(p.bytesread);
     Serial.print("fptr is now: ");

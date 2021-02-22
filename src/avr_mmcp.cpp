@@ -93,6 +93,8 @@ static BYTE send_cmd(BYTE cmd, /* 1st byte (Start + Index) */
         res = rcv_spi();
     } while ((res & 0x80) && --n);
 
+    // TODO: Shouldn't I be doing CS_HIGH(); at the end of these?
+
     return res; /* Return with the response value */
 }
 

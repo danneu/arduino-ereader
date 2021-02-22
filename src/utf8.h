@@ -54,6 +54,35 @@ typedef enum {
 //     return next;
 // }
 
+uint8_t utf8_simple2(uint8_t *s, uint32_t *c) {
+    unsigned char width;
+    if (s[0] < 0x80) {
+        *c = s[0];
+        width = 1;
+    } else if ((s[0] & 0xe0) == 0xc0) {
+        *c = ((uint32_t)(s[0] & 0x1f) << 6) | ((uint32_t)(s[1] & 0x3f) << 0);
+        if ((s[1] & 0xc0) != 0x80) *c = -1;
+        width = 2;
+    } else if ((s[0] & 0xf0) == 0xe0) {
+        *c = ((uint32_t)(s[0] & 0x0f) << 12) | ((uint32_t)(s[1] & 0x3f) << 6) |
+             ((uint32_t)(s[2] & 0x3f) << 0);
+        if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80) *c = -1;
+        width = 3;
+    } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
+        *c = ((uint32_t)(s[0] & 0x07) << 18) | ((uint32_t)(s[1] & 0x3f) << 12) |
+             ((uint32_t)(s[2] & 0x3f) << 6) | ((uint32_t)(s[3] & 0x3f) << 0);
+        if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80 ||
+            (s[3] & 0xc0) != 0x80)
+            *c = -1;
+        width = 4;
+    } else {
+        *c = -1;    // invalid
+        width = 1;  // skip this byte
+    }
+    if (*c >= 0xd800 && *c <= 0xdfff) *c = -1;  // surrogate half
+    return width;
+}
+
 uint8_t *utf8_simple(uint8_t *s, uint32_t *c) {
     unsigned char *next;
     if (s[0] < 0x80) {
