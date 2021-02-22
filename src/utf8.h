@@ -105,7 +105,6 @@ DecodeResult utf8_simple3(uint8_t *s, uint16_t inputlen) {
                                    ((uint32_t)(s[2] & 0x3f) << 6) |
                                    ((uint32_t)(s[3] & 0x3f) << 0)};
         }
-
     } else {
         d = DecodeResult{.evt = UTF8_INVALID, .width = 1, .cp = -1};
     }

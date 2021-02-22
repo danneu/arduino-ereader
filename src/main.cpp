@@ -14,9 +14,9 @@ static void print_fresult(FRESULT rc) {
     static const char str[8][15] = {
         "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
         "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
-    // char buf[30];
-    // sprintf(buf, "FRESULT: %s", str[rc]);
-    // Serial.println(str[rc]);
+    // char buf[7 + 15];
+    // sprintf(buf, "Error: %s", str[rc]);
+    // Serial.println(buf);
 }
 
 bool isTxtFile(FILINFO *f) {
@@ -97,6 +97,8 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 textrow_draw_unicode_point(textrow, ' ', x);
                 continue;
             }
+            broke = false;
+
             // broke = false;
             // load from book bytes if we need to
             if (bufidx >= sizeof(buf)) {
@@ -136,25 +138,10 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 continue;
             }
 
-            // Mark bufidx==0 with @
-            // if (bufidx == 0) {
-            //     textrow_draw_unicode_point(textrow, '@', x);
-            //     p.bytesread += width;
-            //     bufidx += width;
-            //     continue;
-            // }
-
-            if (res.cp < 0) {
-                // Invalid utf-8 sequence so don't try to render it.
-                continue;
-            }
             if (res.cp == '\n') {
-                if (!broke) {
-                    broke = true;
-                    break;
-                }
+                broke = true;
+                break;
             }
-            broke = false;
             // don't carry whitespace
             if (x == 0 && (res.cp == ' ')) {
                 x = -1;
@@ -261,62 +248,50 @@ void setup() {
     //         ;
     // }
 
+    PageResult p;
     auto byteloc = 0;
 
-    Serial.print("fptr is now: ");
-    Serial.println(fs.fptr);
-    PageResult p = draw_page(&fs, fs.fptr, textrow);
-    if (p.fres != FR_OK) {
-        // print_fresult(p.fres);
-        while (true)
-            ;
+    while (1) {
+        p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
+        if (p.fres != FR_OK) {
+            Serial.println("draw_page retured bad FRESULT.");
+            while (1)
+                ;
+        }
+        byteloc += p.bytesread;
+        delay(3000);
     }
-    byteloc += p.bytesread;
-    Serial.print("PageResult.bytesdecoded: ");
-    Serial.println(p.bytesread);
-    Serial.print("fptr is now: ");
-    Serial.println(fs.fptr);
 
-    while (true)
-        ;
-
-    // fptr = 640
-    // bytesdec = 582
-    delay(2000);
-    p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
-    byteloc += p.bytesread;
-    Serial.print("PageResult.bytesdecoded: ");
-    Serial.println(p.bytesread);
-    Serial.print("fptr is now: ");
-    Serial.println(fs.fptr);
-
-    delay(2000);
-    p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
-    byteloc += p.bytesread;
-
-    // Decode utf-8
-    // textrow_clear(textrow);
-    // auto *next = buf;  // our place in the buf
-    // long count = 0;
-    // uint8_t *end = buf + sizeof(buf) - 1;
-    // uint32_t cp;
-    // while (next < end) {
-    //     next = utf8_simple(next, &cp);
-    //     count++;
-    //     Serial.println(cp);
-    //     if (cp < 0) {
-    //         Serial.println(F("cp was <0."));
-    //         continue;
-    //     }
-    //     textrow_draw_unicode_point(textrow, cp, count - 1);
-    // }
     // Serial.print("fptr is now: ");
     // Serial.println(fs.fptr);
-    // epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
-    // epd::refreshDisplay();
+    // PageResult p = draw_page(&fs, fs.fptr, textrow);
+    // if (p.fres != FR_OK) {
+    //     // print_fresult(p.fres);
+    //     while (true)
+    //         ;
+    // }
+    // byteloc += p.bytesread;
+    // Serial.print("PageResult.bytesdecoded: ");
+    // Serial.println(p.bytesread);
+    // Serial.print("fptr is now: ");
+    // Serial.println(fs.fptr);
 
-    // sprintf(buf, "%s", buf);
-    // Serial.println(buf);
+    // while (true)
+    //     ;
+
+    // // fptr = 640
+    // // bytesdec = 582
+    // delay(2000);
+    // p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
+    // byteloc += p.bytesread;
+    // Serial.print("PageResult.bytesdecoded: ");
+    // Serial.println(p.bytesread);
+    // Serial.print("fptr is now: ");
+    // Serial.println(fs.fptr);
+
+    // delay(2000);
+    // p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
+    // byteloc += p.bytesread;
 }
 
 void loop() {
