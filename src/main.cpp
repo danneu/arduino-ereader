@@ -57,26 +57,13 @@ void textrow_clear(uint8_t *frame) {
 // c is ascii byte of character
 // idx is character index inside the text row.
 void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
-    // convert char into bitmap array index
-    // if (c < 32) {
-    //     c = 1;  // TODO: c = 0, but it's "!" for now
-    // } else {
-    //     c -= 32;
-    // }
-
-    int res;
     uint8_t glyph[16];
-    res = get_full_glyph(c, glyph);
+    auto res = get_full_glyph(c, glyph);
     if (res == 0) {
         get_full_glyph('!', glyph);
     }
     for (uint8_t y = 0; y < CHAR_HEIGHT; y++) {
         textrow[WIDTH / 8 * y + idx] = ~glyph[y];
-
-        // uint8_t glyph[16];
-        // memcpy_P(glyph, pgm_read_word(&(unicode_glyphs[c])), 16);
-        // textrow[WIDTH / 8 * y + idx] =
-        //     ~glyph[y];  // invert cuz char data uses black=clear
     }
 }
 
@@ -90,10 +77,9 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     FRESULT res;
     uint8_t buf[64];                // holds bytes from ebook
     uint32_t bufidx = sizeof(buf);  // trigger initial load
-    long count = 0;                 // utf8 glyphs decoded so far
-    long bytesdecoded = 0;          // bytes decoded so far from the book
-    bool bookover = false;          // becomes true when no more to read
     uint32_t cp;                    // decoded code point
+    // uint8_t width;  // utf8 bytes consumed to produce the current unicode
+    // codepoint.
 
     if (fs->fptr != offset) {
         p.fres = pf_lseek(offset);
@@ -110,7 +96,7 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 textrow_draw_unicode_point(textrow, ' ', x);
                 continue;
             }
-            broke = false;
+            // broke = false;
             // load from book bytes if we need to
             if (bufidx >= sizeof(buf)) {
                 res = pf_read(buf, sizeof(buf), &readcount);
@@ -125,25 +111,33 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                     buf[readcount] = '\0';
                 }
             }
-            // buf = 1
-            // bufidx = 6
-            // next = 9
+
             // :: Decode next utf-8 and add it to row
             auto width = utf8_simple2(buf + bufidx, &cp);
-            // new idx - old idx
+
+            // Mark bufidx==0 with @
+            if (bufidx == 0) {
+                textrow_draw_unicode_point(textrow, '@', x);
+                p.bytesread += width;
+                bufidx += width;
+                continue;
+            }
+
             p.bytesread += width;
             bufidx += width;
-            // Serial.println(bufidx);
-            // TODO: skip invalid utf8 (cp==-1)
-            count++;
-            // Serial.print(F("Count: "));
-            // Serial.println(count);
-            if (cp == '\n') {
-                broke = true;
-                break;
+            if (cp < 0) {
+                // Invalid utf-8 sequence so don't try to render it.
+                continue;
             }
-            // don't carry spaces
-            if (x == 0 && cp == ' ') {
+            if (cp == '\n') {
+                if (!broke) {
+                    broke = true;
+                    break;
+                }
+            }
+            broke = false;
+            // don't carry whitespace
+            if (x == 0 && (cp == ' ')) {
                 x = -1;
                 continue;
             }
