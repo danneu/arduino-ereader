@@ -261,8 +261,10 @@ void setup() {
     Serial.print("fptr is now: ");
     Serial.println(fs.fptr);
 
+    // fptr = 640
+    // bytesdec = 582
     delay(2000);
-    p = draw_page(&fs, fs.fptr, textrow);
+    p = draw_page(&fs, fs.fptr - (fs.fptr - p.bytesread), textrow);
     Serial.print("PageResult.bytesdecoded: ");
     Serial.println(p.bytesread);
     Serial.print("fptr is now: ");
