@@ -5,32 +5,17 @@
 #include "glyphs.h"
 #include "pff3a/source/diskio.h"
 #include "pff3a/source/pff.h"
+#include "utf8.h"
 
 // TODO: http://elm-chan.org/docs/mmc/mmc_e.html
 // Impl examples: https://gist.github.com/RickKimball/2325039
 
 static void print_fresult(FRESULT rc) {
-    Serial.println(rc);
-    const char *p;
-    static const char str[] =
-        "OK\0"
-        "DISK_ERR\0"
-        "NOT_READY\0"
-        "NO_FILE\0"
-        "NO_PATH\0"
-        "NOT_OPENED\0"
-        "NOT_ENABLED\0"
-        "NO_FILE_SYSTEM\0";
-    // FRESULT i;
-
-    // for (p = str, i = 0; i != rc && *p; i++) {
-    //     while (*p++)
-    //         ;
-    // }
-    // printf("rc=%lu FR_%s\n", (long int)rc, p);
-
-    char buf[20];
-    sprintf(buf, "FRESULT error: %s", str[rc]);
+    static const char str[][14] = {
+        "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
+        "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
+    char buf[9 + 14];
+    sprintf(buf, "FRESULT: %s", str[rc]);
     Serial.println(buf);
 }
 
@@ -48,12 +33,10 @@ bool isTxtFile(FILINFO *f) {
 #define CHARS_PER_PAGE CHARS_PER_ROW *ROWS_PER_PAGE
 
 #define TEXTROW_BUFSIZE CHAR_HEIGHT *WIDTH / CHAR_WIDTH
-// uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
-uint8_t textrow[TEXTROW_BUFSIZE] = {0x00};
+uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
 
 void textrow_clear(uint8_t *frame) {
-    uint16_t i;
-    for (i = 0; i < TEXTROW_BUFSIZE; i++) {
+    for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
         frame[i] = 0xff;
     }
     // uint16_t y, x;
@@ -67,7 +50,7 @@ void textrow_clear(uint8_t *frame) {
 // :: TextRow graphics logic
 // c is ascii byte of character
 // idx is character index inside the text row.
-void textrow_draw_unicode_point(uint8_t textrow[], uint32_t c, uint8_t idx) {
+void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
     // convert char into bitmap array index
     // if (c < 32) {
     //     c = 1;  // TODO: c = 0, but it's "!" for now
@@ -77,12 +60,11 @@ void textrow_draw_unicode_point(uint8_t textrow[], uint32_t c, uint8_t idx) {
 
     int res;
     uint8_t glyph[16];
-    uint8_t y;
-    for (y = 0; y < CHAR_HEIGHT; y++) {
-        res = get_full_glyph(c, glyph);
-        if (res == 0) {
-            get_full_glyph('!', glyph);
-        }
+    res = get_full_glyph(c, glyph);
+    if (res == 0) {
+        get_full_glyph('!', glyph);
+    }
+    for (uint8_t y = 0; y < CHAR_HEIGHT; y++) {
         textrow[WIDTH / 8 * y + idx] = ~glyph[y];
 
         // uint8_t glyph[16];
@@ -97,8 +79,7 @@ void setup() {
     FRESULT res;
     DIR dir;
     FILINFO fno;
-    // uint8_t buf[16];
-    char buf[16];
+    uint8_t buf[16];
     UINT readcount;
 
     Serial.begin(9600);
@@ -123,8 +104,8 @@ void setup() {
     epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
     epd::refreshDisplay();
 
-    while (1)
-        ;
+    // while (1)
+    //     ;
 
     disk_initialize();
     delay(100);
@@ -175,21 +156,47 @@ void setup() {
             ;
     }
 
-    res = pf_read(buf, sizeof(buf) - 1, &readcount);
+    res = pf_read(buf, sizeof(buf), &readcount);
     if (res) {
         print_fresult(res);
         while (1)
             ;
     }
 
-    if (readcount != sizeof(buf) - 1) {
+    if (readcount != sizeof(buf)) {
         Serial.println(F("ebook ended prematurely"));
         while (1)
             ;
     }
 
+    // Decode utf-8
+    textrow_clear(textrow);
+    // uint32_t codepoints[CHARS_PER_ROW] = {'!'};
+    auto *next = buf;  // our place in the buf
+    long count = 0;
+    uint8_t *end = buf + sizeof(buf);
+    uint32_t cp;
+    while (next < end) {
+        next = utf8_simple(next, &cp);
+        count++;
+        Serial.println(cp);
+        if (cp < 0) {
+            Serial.println(F("cp was <0."));
+            continue;
+        }
+        // uint8_t glyph[16];
+        // int res = get_full_glyph(cp, glyph);
+        // if (res == 0) {
+        //     Serial.println(F("Could not find glyph"));
+        //     continue;
+        // }
+        textrow_draw_unicode_point(textrow, cp, count - 1);
+    }
+    epd::setPartialWindow(textrow, 0, CHAR_HEIGHT, WIDTH, CHAR_HEIGHT);
+    epd::refreshDisplay();
+
     // sprintf(buf, "%s", buf);
-    Serial.println(buf);
+    // Serial.println(buf);
 }
 
 void loop() {

@@ -1,5 +1,6 @@
 #include "epd.h"
 
+#include <Arduino.h>
 #include <SPI.h>
 
 #define EPD_RESET_PIN 8  // B0
@@ -35,15 +36,6 @@ void waitUntilIdle() {
     while (!digitalRead(EPD_BUSY_PIN))
         ;
     // while (digitalRead(EPD_BUSY_PIN) == HIGH) ;
-}
-
-uint8_t spiTransmit(uint8_t data) {
-    // load data into register
-    SPDR = data;
-    // wait until trasferred
-    while (!(SPSR & (1 << SPIF)))
-        ;
-    return SPDR;
 }
 
 // TODO chipselect on send_{cmd,dta}
@@ -118,13 +110,14 @@ void setPartialWindow(const unsigned char* buffer_black, int x, int y, int w,
     sendData(0x01);
     delay(2);
 
-    /* epd_send_command(DATA_START_TRANSMISSION_1); */
-    /* for(int i=0; i<w/8*l; i++){ */
-    /* epd_send_data(0xff); */
-    /* } */
+    // sendCommand(Cmd::DATA_START_TRANSMISSION_1);
+    // for (int i = 0; i < w / 8 * l; i++) {
+    //     sendData(0xFF);
+    // }
 
     sendCommand(Cmd::DATA_START_TRANSMISSION_2);
     for (int i = 0; i < w / 8 * l; i++) {
+        Serial.write(buffer_black[i]);
         sendData(buffer_black[i]);
     }
     delay(2);
