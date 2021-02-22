@@ -78,7 +78,7 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     // uint8_t buf[64];                // holds bytes from ebook
     uint8_t buf[4];                 // holds bytes from ebook
     uint32_t bufidx = sizeof(buf);  // trigger initial load
-    uint32_t cp;                    // decoded code point
+    // uint32_t cp;                    // decoded code point
     // uint8_t width;  // utf8 bytes consumed to produce the current unicode
     // codepoint.
 
@@ -113,8 +113,28 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             }
 
             // :: Decode next utf-8 and add it to row
-            auto width = utf8_simple2(buf + bufidx, &cp, sizeof(buf) - bufidx);
-            Serial.println(width);
+            auto res = utf8_simple3(buf + bufidx, sizeof(buf) - bufidx);
+
+            //  0 1 2 3 4
+            // [_ _ _ o o]o
+            //        ^
+            //        EOF width=2
+            if (res.evt == UTF8_EOF) {
+                p.fres = pf_lseek(fs->fptr - res.width);
+                if (p.fres != FR_OK) {
+                    return p;
+                }
+                x--;
+                bufidx = sizeof(buf);  // now force the pf_read branch above
+                continue;
+            }
+
+            p.bytesread += res.width;
+            bufidx += res.width;
+
+            if (res.evt == UTF8_INVALID) {
+                continue;
+            }
 
             // Mark bufidx==0 with @
             // if (bufidx == 0) {
@@ -124,13 +144,11 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             //     continue;
             // }
 
-            p.bytesread += width;
-            bufidx += width;
-            if (cp < 0) {
+            if (res.cp < 0) {
                 // Invalid utf-8 sequence so don't try to render it.
                 continue;
             }
-            if (cp == '\n') {
+            if (res.cp == '\n') {
                 if (!broke) {
                     broke = true;
                     break;
@@ -138,11 +156,11 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             }
             broke = false;
             // don't carry whitespace
-            if (x == 0 && (cp == ' ')) {
+            if (x == 0 && (res.cp == ' ')) {
                 x = -1;
                 continue;
             }
-            textrow_draw_unicode_point(textrow, cp, x);
+            textrow_draw_unicode_point(textrow, res.cp, x);
         }
         epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
