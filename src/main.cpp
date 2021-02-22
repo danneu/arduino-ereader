@@ -123,11 +123,15 @@ PageResult draw_page(uint32_t offset, uint8_t *textrow) {
                     buf[readcount] = '\0';
                 }
             }
+            // buf = 1
+            // bufidx = 6
+            // next = 9
             // :: Decode next utf-8 and add it to row
             auto next = utf8_simple(buf + bufidx, &cp);
-            bufidx = (next - buf);
+            // new idx - old idx
             p.bytesread += (next - buf - bufidx);
-            Serial.println(bufidx);
+            bufidx = (next - buf);
+            // Serial.println(bufidx);
             // TODO: skip invalid utf8 (cp==-1)
             count++;
             // Serial.print(F("Count: "));
@@ -202,7 +206,7 @@ void setup() {
                 ;
         }
         Serial.print(fno.fname);
-        Serial.print("\t");
+        Serial.print(F("\t"));
         Serial.println(fno.fsize);
         if (isTxtFile(&fno) && fno.fsize > 100) {
             break;
@@ -234,17 +238,18 @@ void setup() {
     //         ;
     // }
 
+    Serial.print("fptr is now: ");
+    Serial.println(fs.fptr);
     PageResult p = draw_page(0, textrow);
     if (p.fres != FR_OK) {
         // print_fresult(p.fres);
-        Serial.println("FUCK");
         while (true)
             ;
     }
     Serial.print("PageResult.bytesdecoded: ");
-    // Serial.println(p.bytesread);
-    // Serial.print("fptr is now: ");
-    // Serial.println(fs.fptr);
+    Serial.println(p.bytesread);
+    Serial.print("fptr is now: ");
+    Serial.println(fs.fptr);
 
     // Decode utf-8
     // textrow_clear(textrow);
