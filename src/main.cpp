@@ -11,7 +11,7 @@
 // Impl examples: https://gist.github.com/RickKimball/2325039
 
 static void print_fresult(FRESULT rc) {
-    static const char str[][14] = {
+    static const char str[8][15] = {
         "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
         "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
     char buf[9 + 14];
@@ -79,31 +79,22 @@ void setup() {
     FRESULT res;
     DIR dir;
     FILINFO fno;
-    uint8_t buf[16];
+    uint8_t buf[128];  // This holds bytes from the ebook
     UINT readcount;
 
     Serial.begin(9600);
     SPI.begin();
-
-    // int gres1 = get_glyph('A', 0, buf);
-    // int gres2 = get_glyph2('A', 0, buf);
-    // Serial.println(gres1);
-    // Serial.println(gres2);
-    // while (1)
-    //     ;
 
     // SD card chip select
     pinMode(5, OUTPUT);
 
     epd::init();
     epd::clear();
-
-    for (uint8_t i = 0; i < 12; i++) {
-        textrow_draw_unicode_point(textrow, 'A', i);
-    }
-    epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
-    epd::refreshDisplay();
-
+    // for (uint8_t i = 0; i < 12; i++) {
+    //     textrow_draw_unicode_point(textrow, 'A', i);
+    // }
+    // epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
+    // epd::refreshDisplay();
     // while (1)
     //     ;
 
@@ -171,10 +162,9 @@ void setup() {
 
     // Decode utf-8
     textrow_clear(textrow);
-    // uint32_t codepoints[CHARS_PER_ROW] = {'!'};
     auto *next = buf;  // our place in the buf
     long count = 0;
-    uint8_t *end = buf + sizeof(buf);
+    uint8_t *end = buf + sizeof(buf) - 1;
     uint32_t cp;
     while (next < end) {
         next = utf8_simple(next, &cp);
@@ -184,15 +174,11 @@ void setup() {
             Serial.println(F("cp was <0."));
             continue;
         }
-        // uint8_t glyph[16];
-        // int res = get_full_glyph(cp, glyph);
-        // if (res == 0) {
-        //     Serial.println(F("Could not find glyph"));
-        //     continue;
-        // }
         textrow_draw_unicode_point(textrow, cp, count - 1);
     }
-    epd::setPartialWindow(textrow, 0, CHAR_HEIGHT, WIDTH, CHAR_HEIGHT);
+    Serial.print("fptr is now: ");
+    Serial.println(fs.fptr);
+    epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
     epd::refreshDisplay();
 
     // sprintf(buf, "%s", buf);

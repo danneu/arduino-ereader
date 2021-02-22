@@ -8,23 +8,69 @@
 
 #include <stdint.h>
 
-unsigned char *utf8_simple(unsigned char *s, long *c) {
+/* Results of Disk Functions */
+typedef enum {
+    UTF8_OK = 0,   // 0: Function succeeded
+    UTF8_INVALID,  // 1: Invalid byte sequence to decode a codepoint
+                   // next pointer is advanced
+    UTF8_EOF,      // 2: Need more input
+} UTF8_RESULT;
+
+// inputlen tells us how many bytes we can read from input `s` so that we can
+// communicate that we need more bytes.
+// uint8_t *utf8_simple(uint8_t *s, uint16_t inputlen, long *cp,
+//                      UTF8_RESULT *res) {
+//     unsigned char *next;
+//     if (inputlen < 1) {
+//         *res = UTF8_EOF;
+//         next = s;
+//     } else if (s[0] < 0x80) {  // inputlen is at least 1
+//         *cp = s[0];
+//         *res = UTF8_OK;
+//         next = s + 1;
+//     } else if ((s[0] & 0xe0) == 0xc0) {
+//         *cp = ((long)(s[0] & 0x1f) << 6) | ((long)(s[1] & 0x3f) << 0);
+//         if ((s[1] & 0xc0) != 0x80) {
+//             *cp = -1;
+//         }
+//         next = s + 2;
+//     } else if ((s[0] & 0xf0) == 0xe0) {
+//         *cp = ((long)(s[0] & 0x0f) << 12) | ((long)(s[1] & 0x3f) << 6) |
+//               ((long)(s[2] & 0x3f) << 0);
+//         if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80) *cp = -1;
+//         next = s + 3;
+//     } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
+//         *cp = ((long)(s[0] & 0x07) << 18) | ((long)(s[1] & 0x3f) << 12) |
+//               ((long)(s[2] & 0x3f) << 6) | ((long)(s[3] & 0x3f) << 0);
+//         if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80 ||
+//             (s[3] & 0xc0) != 0x80)
+//             *cp = -1;
+//         next = s + 4;
+//     } else {
+//         *cp = -1;      // invalid
+//         next = s + 1;  // skip this byte
+//     }
+//     if (*cp >= 0xd800 && *cp <= 0xdfff) *cp = -1;  // surrogate half
+//     return next;
+// }
+
+uint8_t *utf8_simple(uint8_t *s, uint32_t *c) {
     unsigned char *next;
     if (s[0] < 0x80) {
         *c = s[0];
         next = s + 1;
     } else if ((s[0] & 0xe0) == 0xc0) {
-        *c = ((long)(s[0] & 0x1f) << 6) | ((long)(s[1] & 0x3f) << 0);
+        *c = ((uint32_t)(s[0] & 0x1f) << 6) | ((uint32_t)(s[1] & 0x3f) << 0);
         if ((s[1] & 0xc0) != 0x80) *c = -1;
         next = s + 2;
     } else if ((s[0] & 0xf0) == 0xe0) {
-        *c = ((long)(s[0] & 0x0f) << 12) | ((long)(s[1] & 0x3f) << 6) |
-             ((long)(s[2] & 0x3f) << 0);
+        *c = ((uint32_t)(s[0] & 0x0f) << 12) | ((uint32_t)(s[1] & 0x3f) << 6) |
+             ((uint32_t)(s[2] & 0x3f) << 0);
         if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80) *c = -1;
         next = s + 3;
     } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
-        *c = ((long)(s[0] & 0x07) << 18) | ((long)(s[1] & 0x3f) << 12) |
-             ((long)(s[2] & 0x3f) << 6) | ((long)(s[3] & 0x3f) << 0);
+        *c = ((uint32_t)(s[0] & 0x07) << 18) | ((uint32_t)(s[1] & 0x3f) << 12) |
+             ((uint32_t)(s[2] & 0x3f) << 6) | ((uint32_t)(s[3] & 0x3f) << 0);
         if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80 ||
             (s[3] & 0xc0) != 0x80)
             *c = -1;
@@ -37,32 +83,32 @@ unsigned char *utf8_simple(unsigned char *s, long *c) {
     return next;
 }
 
-uint8_t *utf8_simpleOLD(
-    uint8_t *s,   // buffer of bytes to decode
-    uint32_t *cp  // length of decoded glyph (will be -1 if bad)
-) {
-    unsigned char *next;
-    if (s[0] < 0x80) {
-        *cp = s[0];
-        next = s + 1;
-    } else if ((s[0] & 0xe0) == 0xc0) {
-        *cp = ((long)(s[0] & 0x1f) << 6) | ((long)(s[1] & 0x3f) << 0);
-        next = s + 2;
-    } else if ((s[0] & 0xf0) == 0xe0) {
-        *cp = ((long)(s[0] & 0x0f) << 12) | ((long)(s[1] & 0x3f) << 6) |
-              ((long)(s[2] & 0x3f) << 0);
-        next = s + 3;
-    } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
-        *cp = ((long)(s[0] & 0x07) << 18) | ((long)(s[1] & 0x3f) << 12) |
-              ((long)(s[2] & 0x3f) << 6) | ((long)(s[3] & 0x3f) << 0);
-        next = s + 4;
-    } else {
-        *cp = -1;      // invalid
-        next = s + 1;  // skip this byte
-    }
-    if (*cp >= 0xd800 && *cp <= 0xdfff) *cp = -1;  // surrogate half
-    return next;
-}
+// uint8_t *utf8_simpleOLD(
+//     uint8_t *s,   // buffer of bytes to decode
+//     uint32_t *cp  // length of decoded glyph (will be -1 if bad)
+// ) {
+//     unsigned char *next;
+//     if (s[0] < 0x80) {
+//         *cp = s[0];
+//         next = s + 1;
+//     } else if ((s[0] & 0xe0) == 0xc0) {
+//         *cp = ((long)(s[0] & 0x1f) << 6) | ((long)(s[1] & 0x3f) << 0);
+//         next = s + 2;
+//     } else if ((s[0] & 0xf0) == 0xe0) {
+//         *cp = ((long)(s[0] & 0x0f) << 12) | ((long)(s[1] & 0x3f) << 6) |
+//               ((long)(s[2] & 0x3f) << 0);
+//         next = s + 3;
+//     } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
+//         *cp = ((long)(s[0] & 0x07) << 18) | ((long)(s[1] & 0x3f) << 12) |
+//               ((long)(s[2] & 0x3f) << 6) | ((long)(s[3] & 0x3f) << 0);
+//         next = s + 4;
+//     } else {
+//         *cp = -1;      // invalid
+//         next = s + 1;  // skip this byte
+//     }
+//     if (*cp >= 0xd800 && *cp <= 0xdfff) *cp = -1;  // surrogate half
+//     return next;
+// }
 
 /* Decode the next character, C, from BUF, reporting errors in E.
  *
@@ -117,6 +163,55 @@ uint8_t *utf8_simpleOLD(
 //     *e >>= shifte[len];
 
 //     return next;
+// }
+
+// #define UTF8_OK 0
+// #define UTF8_INVALID 1
+
+// int utf8_decode(uint8_t *input, uint32_t *cp, uint8_t *width) {
+//     *width = 0;  // reset
+//     int result = 0;
+//     // int input[6] = {};
+
+//     if (input[0] < 0x80) {
+//         // the first character is the only 7 bit sequence...
+//         *width = 1;
+//         *cp = input[0];
+//         return UTF8_OK;
+//     } else if ((input[0] & 0xC0) == 0x80) {
+//         // This is not the beginning of the multibyte sequence.
+//         return UTF8_INVALID;
+//     } else if ((input[0] & 0xfe) == 0xfe) {
+//         // This is not a valid UTF-8 stream.
+//         return UTF8_INVALID;
+//     } else {
+//         for (int sequence_length = 1; input[0] & (0x80 >> sequence_length);
+//              ++sequence_length)
+//             ;
+//         result = input[0] & ((1 << sequence_length) - 1);
+//         printf("squence length = %d ", sequence_length);
+//         int index;
+//         for (index = 1; index < sequence_length; ++index) {
+//             input[index] = fgetc(f);
+//             printf("(i[%d] = %d) ", index, input[index]);
+//             if (input[index] == EOF) {
+//                 return EOF;
+//             }
+//             result = (result << 6) | (input[index] & 0x30);
+//         }
+//     }
+//     return result;
+// }
+
+// main(int argc, char **argv) {
+//     printf("open(%s) ", argv[1]);
+//     FILE *f = fopen(argv[1], "r");
+//     int c = 0;
+//     while (c != EOF) {
+//         c = fgetutf8c(f);
+//         printf("* %d\n", c);
+//     }
+//     fclose(f);
 // }
 
 #endif

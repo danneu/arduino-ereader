@@ -117,7 +117,7 @@ void setPartialWindow(const unsigned char* buffer_black, int x, int y, int w,
 
     sendCommand(Cmd::DATA_START_TRANSMISSION_2);
     for (int i = 0; i < w / 8 * l; i++) {
-        Serial.write(buffer_black[i]);
+        // Serial.write(buffer_black[i]);
         sendData(buffer_black[i]);
     }
     delay(2);
