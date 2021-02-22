@@ -142,12 +142,12 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 broke = true;
                 break;
             }
-            if (bufidx == 0) {
-                textrow_draw_unicode_point(textrow, '@', x);
-
-            } else {
-                textrow_draw_unicode_point(textrow, cp, x);
+            // don't carry spaces
+            if (x == 0 && cp == ' ') {
+                x = -1;
+                continue;
             }
+            textrow_draw_unicode_point(textrow, cp, x);
         }
         epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
