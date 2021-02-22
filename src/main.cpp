@@ -75,7 +75,8 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     };
     UINT readcount;
     FRESULT res;
-    uint8_t buf[64];                // holds bytes from ebook
+    // uint8_t buf[64];                // holds bytes from ebook
+    uint8_t buf[4];                 // holds bytes from ebook
     uint32_t bufidx = sizeof(buf);  // trigger initial load
     uint32_t cp;                    // decoded code point
     // uint8_t width;  // utf8 bytes consumed to produce the current unicode
@@ -99,9 +100,8 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             // broke = false;
             // load from book bytes if we need to
             if (bufidx >= sizeof(buf)) {
-                res = pf_read(buf, sizeof(buf), &readcount);
-                if (res != FR_OK) {
-                    p.fres = res;
+                p.fres = pf_read(buf, sizeof(buf), &readcount);
+                if (p.fres != FR_OK) {
                     return p;
                 }
                 bufidx = 0;
@@ -114,14 +114,15 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
 
             // :: Decode next utf-8 and add it to row
             auto width = utf8_simple2(buf + bufidx, &cp);
+            Serial.println(width);
 
             // Mark bufidx==0 with @
-            if (bufidx == 0) {
-                textrow_draw_unicode_point(textrow, '@', x);
-                p.bytesread += width;
-                bufidx += width;
-                continue;
-            }
+            // if (bufidx == 0) {
+            //     textrow_draw_unicode_point(textrow, '@', x);
+            //     p.bytesread += width;
+            //     bufidx += width;
+            //     continue;
+            // }
 
             p.bytesread += width;
             bufidx += width;
@@ -257,6 +258,9 @@ void setup() {
     Serial.println(p.bytesread);
     Serial.print("fptr is now: ");
     Serial.println(fs.fptr);
+
+    while (true)
+        ;
 
     // fptr = 640
     // bytesdec = 582
