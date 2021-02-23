@@ -314,7 +314,11 @@ void init() {
     // I couldn't get 200Mhz (max) to refresh the screen,
     // but 150Mhz and 100Mhz work well.
     sendCommand(Cmd::PLL_CONTROL);
-    sendData(0x3a);  // 100Mhz TODO: Change to 150Mhz, nice for dev.
+    // sendData(0x3a);  // 100Mhz TODO: Change to 150Mhz, nice for dev.
+    // 0x3a: 100Mhz
+    // 0x29: 150Mhz
+    // 0x39  200Mhz
+    sendData(0x29);
 
     sendCommand(Cmd::RESOLUTION_SETTING);
     sendData(EPD_WIDTH >> 8);

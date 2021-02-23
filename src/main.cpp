@@ -12,7 +12,7 @@
 // Impl examples: https://gist.github.com/RickKimball/2325039
 
 static void print_fresult(FRESULT rc) {
-    static const char str[8][15] = {
+    static const char str[][15] = {
         "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
         "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
     // char buf[7 + 15];
@@ -20,21 +20,13 @@ static void print_fresult(FRESULT rc) {
     // Serial.println(buf);
 }
 
-bool isTxtFile(FILINFO *f) {
-    // return f->fname[11] == 'T' && f->fname[10] == 'X' && f->fname[9] == 'T'
-    // &&
-    //        f->fname[8] == '.';  // && f->fattrib & AM_DIR == 0;
-}
-
-#define CHAR_HEIGHT 16
-#define CHAR_WIDTH 8
 #define WIDTH 400
 #define HEIGHT 300
 #define CHARS_PER_ROW WIDTH / CHAR_WIDTH
 #define ROWS_PER_PAGE HEIGHT / CHAR_HEIGHT
 #define CHARS_PER_PAGE (CHARS_PER_ROW * ROWS_PER_PAGE)
 
-#define TEXTROW_BUFSIZE CHAR_HEIGHT *WIDTH / CHAR_WIDTH
+#define TEXTROW_BUFSIZE (CHAR_HEIGHT * WIDTH / CHAR_WIDTH)
 uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
 
 struct PageResult {
@@ -69,6 +61,22 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
     }
 }
 
+void set_glyph(uint32_t cp, uint16_t row, uint16_t col) {
+    uint8_t glyph[16];
+    auto res = get_full_glyph(cp, glyph);
+    if (res == 0) {
+        get_full_glyph('!', glyph);
+    }
+
+    // invert the colors
+    for (auto i = 0; i < 16; i++) {
+        glyph[i] = ~glyph[i];
+    }
+
+    epd::setPartialWindow(glyph, col * CHAR_WIDTH, row * CHAR_HEIGHT,
+                          CHAR_WIDTH, CHAR_HEIGHT);
+}
+
 PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     PageResult p = {
         .bytesread = 0,
@@ -77,8 +85,8 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     };
     UINT readcount;
     FRESULT res;
-    // uint8_t buf[64];                // holds bytes from ebook
-    uint8_t buf[4];                 // holds bytes from ebook
+    uint8_t buf[64];  // holds bytes from ebook
+    // uint8_t buf[4];                 // holds bytes from ebook
     uint32_t bufidx = sizeof(buf);  // trigger initial load
     // uint32_t cp;                    // decoded code point
     // uint8_t width;  // utf8 bytes consumed to produce the current unicode
@@ -97,6 +105,7 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
         for (int x = 0; x < CHARS_PER_ROW; x++) {
             if (broke && x < 4) {
                 textrow_draw_unicode_point(textrow, ' ', x);
+                // set_glyph(' ', y, x);
                 continue;
             }
             broke = false;
@@ -117,7 +126,7 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
 
             // :: Decode next utf-8 and add it to row
             auto res = utf8_simple3(buf + bufidx, readcount - bufidx);
-            Serial.println(res.cp);
+            // Serial.println(res.cp);
 
             //  0 1 2 3 4
             // [_ _ _ o o]o
@@ -157,6 +166,7 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 continue;
             }
             textrow_draw_unicode_point(textrow, res.cp, x);
+            // set_glyph(res.cp, y, x);
         }
         epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
@@ -165,7 +175,7 @@ exit:
     epd::refreshDisplay();
 
     // Serial.print("BUfidx ended at: ");
-    Serial.write(bufidx);
+    // Serial.write(bufidx);
 
     // p.fres = FR_OK;
     return p;
@@ -224,7 +234,7 @@ void setup() {
         Serial.print(fno.fext);
         Serial.print(F("\t"));
         Serial.println(fno.fsize);
-        if (!strcmp(fno.fext, "TXT") && fno.fsize < 100) {
+        if (!strcmp(fno.fext, "TXT") && fno.fsize > 100) {
             break;
         }
     }
