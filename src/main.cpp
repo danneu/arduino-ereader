@@ -111,18 +111,25 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 if (readcount < sizeof(buf)) {
                     // bookover = true;
                     p.eof = true;
-                    buf[readcount] = '\0';
                 }
             }
 
             // :: Decode next utf-8 and add it to row
-            auto res = utf8_simple3(buf + bufidx, sizeof(buf) - bufidx);
+            auto res = utf8_simple3(buf + bufidx, readcount - bufidx);
+            Serial.println(res.cp);
 
             //  0 1 2 3 4
             // [_ _ _ o o]o
             //        ^
             //        EOF width=2
             if (res.evt == UTF8_EOF) {
+                if (p.eof) {
+                    // make sure we paint our progress
+                    epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH,
+                                          CHAR_HEIGHT);
+                    goto exit;
+                }
+
                 p.fres = pf_lseek(fs->fptr - res.width);
                 if (p.fres != FR_OK) {
                     return p;
@@ -152,12 +159,14 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
         }
         epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
+exit:
+
     epd::refreshDisplay();
 
     // Serial.print("BUfidx ended at: ");
     Serial.write(bufidx);
 
-    p.fres = FR_OK;
+    // p.fres = FR_OK;
     return p;
 }
 
@@ -251,6 +260,11 @@ void setup() {
         p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
         if (p.fres != FR_OK) {
             Serial.println("draw_page retured bad FRESULT.");
+            while (1)
+                ;
+        }
+        if (p.eof) {
+            Serial.println("end of book.");
             while (1)
                 ;
         }
