@@ -3,10 +3,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 
-#define EPD_RESET_PIN 8  // B0
-#define EPD_DC_PIN 9     // B1
-#define EPD_CS_PIN 10    // B2
-#define EPD_BUSY_PIN 7   // D7
+#include "config.h"
 
 // Drive chipSelect (SPI slave toggle)
 // TODO: Come up with better solution

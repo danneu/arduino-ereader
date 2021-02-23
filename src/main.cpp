@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 
+#include "config.h"
 #include "epd.h"
 #include "glyphs.h"
 #include "pff3a/source/diskio.h"
@@ -182,7 +183,7 @@ void setup() {
     SPI.begin();
 
     // SD card chip select
-    pinMode(5, OUTPUT);
+    pinMode(SD_CS_PIN, OUTPUT);
 
     epd::init();
     epd::clear();
