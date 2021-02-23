@@ -13,4 +13,11 @@
 #define EPD_CS_PIN 10    // B2
 #define EPD_BUSY_PIN 7   // D7
 
+// #define PIN_LOW(port, pin) (port &= ~(1 << pin))
+// #define PIN_HIGH(port, pin) (port |= (1 << pin))
+
+// #define EPD_RESET_LOW() PIN_LOW(PORTB, DDB0)
+// #define EPD_RESET_HIGH() PIN_HIGH(PORTB, DDB0)
+// #define READ_BUSY()
+
 #endif

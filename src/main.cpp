@@ -176,6 +176,21 @@ exit:
     return p;
 }
 
+static void render_fresult(FRESULT rc, uint8_t *frame) {
+    static const char str[][15] = {
+        "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
+        "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
+    const char *msg = str[rc];
+    textrow_clear(frame);
+    for (uint8_t i = 0; msg[i] != 0; i++) {
+        textrow_draw_unicode_point(frame, msg[i],
+                                   WIDTH / CHAR_WIDTH / 2 - 15 / 2 + i);
+    }
+
+    epd_set_partial_window(frame, 0, 300 / 2, 400, CHAR_HEIGHT);
+    epd_refresh();
+}
+
 void setup() {
     FATFS fs;
     FRESULT res;
@@ -193,8 +208,14 @@ void setup() {
     epd_init();
     epd_clear();
 
+    // while (1)
+    //     ;
+
     disk_initialize();
     delay(100);
+
+    render_fresult(FR_NO_FILE, textrow);
+    delay(5000);
 
     res = pf_mount(&fs);
     if (res) {

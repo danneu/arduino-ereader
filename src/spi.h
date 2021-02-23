@@ -13,7 +13,6 @@ extern "C" {
 
 void spi_begin();
 uint8_t spi_recv();
-// uint8_t spi_xfer(uint8_t byte);
 
 // Write to the SPI bus (MOSI pin) and also receive (MISO pin)
 inline static uint8_t spi_xfer(uint8_t data) {

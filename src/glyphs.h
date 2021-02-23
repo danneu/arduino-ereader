@@ -1,5 +1,5 @@
-#ifndef _glyphs_h
-#define _glyphs_h
+#ifndef glyphs_h
+#define glyphs_h
 
 #include <stdint.h>
 
@@ -13,4 +13,4 @@ uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]);
 }
 #endif
 
-#endif  // dbl guard
+#endif  // guard
