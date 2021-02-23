@@ -14,6 +14,16 @@
 #define ROWS_PER_PAGE HEIGHT / CHAR_HEIGHT
 #define CHARS_PER_PAGE (CHARS_PER_ROW * ROWS_PER_PAGE)
 
+#define serial(str, val) (Serial.print(str), Serial.println(val))
+#define serial3(str, val, val2) \
+    do {                        \
+        Serial.print(str);      \
+        Serial.print(val);      \
+        Serial.print(" :: ");   \
+        Serial.println(val2);   \
+                                \
+    } while (0)
+
 // With only 2K memory, I can't do the easy thing of holding a 1:1 pixel buffer.
 // For now I'm buffering draws to the display with a `textrow` that's exactly
 // one row of text tall and stretches across the whole display.
@@ -39,6 +49,7 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t pt, uint8_t idx) {
     auto notfound = get_glyph(pt, glyph);
     if (notfound) {
         // silly fallback
+        serial("glyph not foun for ", pt);
         get_glyph('_', glyph);
     }
     for (uint8_t y = 0; y < CHAR_HEIGHT; y++) {
@@ -163,20 +174,278 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     return p;
 }
 
-static void render_fresult(FRESULT rc, uint8_t *frame) {
-    static const char str[][15] = {
-        "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
-        "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
-    const char *msg = str[rc];
-    textrow_clear(frame);
-    for (uint8_t i = 0; msg[i] != 0; i++) {
-        textrow_draw_unicode_point(frame, msg[i],
-                                   WIDTH / CHAR_WIDTH / 2 - 15 / 2 + i);
+////////////////////////////////////////////////////////////
+struct State {
+    uint8_t buf[64];
+    uint32_t bufidx;
+    uint32_t ptbuf[16];
+    uint8_t ptidx;
+    uint32_t byteloc;
+    FATFS *fs;
+};
+
+State new_state(FATFS *fs) {
+    State x = State{};
+    x.fs = fs;
+    x.bufidx = sizeof(x.buf);
+    return x;
+}
+
+////////////////////////////////////////////////////////////
+
+typedef struct PTRESULT {
+    UTF8_STATUS evt;
+    bool eob;
+    uint32_t pt;
+} PTRESULT;
+
+PTRESULT next_codepoint(State *s) {
+    PTRESULT p = PTRESULT{};
+    p.eob = false;
+    UINT readcount;
+    if (s->bufidx >= sizeof(s->buf)) {
+        auto res = pf_read(s->buf, sizeof(s->buf), &readcount);
+        if (res != FR_OK) {
+            serial("res was bad: ", res);
+        }
+        s->bufidx = 0;
+        if (readcount < sizeof(s->buf)) {
+            p.eob = true;
+        }
     }
 
-    epd_set_partial_window(frame, 0, HEIGHT / 2, WIDTH, CHAR_HEIGHT);
+    auto res = utf8_decode(s->buf + s->bufidx, readcount - s->bufidx);
+    if (res.evt != UTF8_OK) {
+        serial("utf8 decode bad: ", res.evt);
+    }
+    // TODO: Handle bad cases
+    s->bufidx += res.width;
+
+    p.evt = res.evt;
+    p.pt = res.pt;
+    // serial("next_codepoint: ", p.pt);
+    return p;
+}
+
+bool pt_isspace(uint32_t pt) { return pt == ' ' || pt == '\n' || pt == '\r'; }
+
+int seek_space(const uint32_t *pts, uint16_t len) {
+    uint16_t i = 0;
+    while (i++ < len - 1) {
+        if (pt_isspace(pts[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void show_page(State *s) {
+    uint16_t x = 0, y = 0;
+    uint32_t ps[16];
+    int ips = 0;
+
+    textrow_clear(textrow);
+    while (y < ROWS_PER_PAGE) {
+        auto r = next_codepoint(s);
+        if (r.evt == UTF8_INVALID) {
+            continue;
+        } else if (r.evt == UTF8_EOI) {
+            serial("EOIIIIIIIIIIIIIIIII", "");
+        }
+
+        // Catch NL
+        // if (r.pt == '\n') {
+        //     epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
+        //                            CHAR_HEIGHT);
+        //     textrow_clear(textrow);
+        //     y++;
+        //     x = 0;
+        //     continue;
+        // }
+
+        // ps[ips++] = r.pt;
+
+        if (r.pt == '\n') {
+        } else {
+            ps[ips++] = r.pt;
+        }
+
+        if (r.pt == '\n') {
+            for (int i = 0; i < ips; i++) {
+                textrow_draw_unicode_point(textrow, ps[i], x);
+                x++;
+            }
+            ips = 0;
+            epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
+                                   CHAR_HEIGHT);
+            textrow_clear(textrow);
+            x = 0;
+            y++;
+        } else if (pt_isspace(r.pt)) {
+            // serial("isspace x=", x);
+            // ips is distance
+            if (x + ips < CHARS_PER_ROW) {
+                // serial("2. is room. ips=", ips);
+                for (int i = 0; i < ips; i++) {
+                    textrow_draw_unicode_point(textrow, ps[i], x);
+                    x++;
+                }
+                ips = 0;
+            } else {
+                // serial("2. is  NOT room", "");
+                // not enough space on this row
+                epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
+                                       CHAR_HEIGHT);
+                textrow_clear(textrow);
+                y++;
+                x = 0;
+                for (int i = 0; i < ips; i++) {
+                    textrow_draw_unicode_point(textrow, ps[i], x);
+                    x++;
+                }
+                ips = 0;
+            }
+        } else if (ips >= 16 - 1) {
+            // check if full
+            if (x + ips < CHARS_PER_ROW) {
+                // serial("2. is room. ips=", ips);
+                for (int i = 0; i < ips; i++) {
+                    textrow_draw_unicode_point(textrow, ps[i], x);
+                    x++;
+                }
+                ips = 0;
+            } else {
+                // serial("2. is  NOT room", "");
+                // not enough space on this row
+                epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
+                                       CHAR_HEIGHT);
+                textrow_clear(textrow);
+                y++;
+                x = 0;
+                for (int i = 0; i < ips; i++) {
+                    textrow_draw_unicode_point(textrow, ps[i], x);
+                    x++;
+                }
+                ips = 0;
+            }
+        } else {
+            // not space, and buf isn't full
+        }
+    }
+    epd_refresh();
+
+    return;
+
+    textrow_clear(textrow);
+    for (y = 0; y < ROWS_PER_PAGE; y++) {
+        serial("YYYYYYY: ", y);
+        textrow_clear(textrow);
+
+        //
+        // auto space = seek_space(ps, ips);
+        // if (space > -1) {
+
+        // }
+
+        while (1) {
+            // serial3("x: ", x, ips);
+            if (ips >= 16 - 1) {
+                for (int i = 0; i < 16; i++) {
+                    if (x >= CHARS_PER_ROW - 1) {
+                        // epd_set_partial_window(textrow, 0, y *
+                        // CHAR_HEIGHT,
+                        //                        WIDTH, CHAR_HEIGHT);
+                        x = 0;
+                        memcpy(ps, ps + i, 16 - i);
+                        ips = 16 - ips;
+                        goto endwhile;
+                    } else {
+                        textrow_draw_unicode_point(textrow, ps[i], x);
+                        x++;
+                        // serial3("uncidode: ", ps[i], x);
+                    }
+                    // serial3("drawing pt at ", i, ps[i]);
+                }
+                // for (int j = i; j < 16 - i; j++) {
+                //     textrow_draw_unicode_point(textrow, ps[j], x++);
+                // }
+                ips = 0;
+            }
+
+            PTRESULT pr = next_codepoint(s);
+            // if (pt_isspace(pr.pt)) {
+            //     break;  // next y
+            // }
+            if (pr.evt == UTF8_INVALID) {
+                continue;
+            }
+            ps[ips++] = pr.pt;
+        }
+    endwhile:
+        // textrow_draw_unicode_point(textrow, pr.pt, x);
+        epd_set_partial_window(textrow, 0, y * CHAR_HEIGHT, WIDTH, CHAR_HEIGHT);
+    }
     epd_refresh();
 }
+
+void show_pageOLD0(State *s) {
+    uint16_t x, y;
+    uint32_t ps[16];
+    int ips = 0;
+
+    textrow_clear(textrow);
+    for (y = 0; y < ROWS_PER_PAGE; y++) {
+        serial("YYYYYYY: ", y);
+        textrow_clear(textrow);
+
+        //
+        // auto space = seek_space(ps, ips);
+        // if (space > -1) {
+
+        // }
+
+        while (1) {
+            // serial3("x: ", x, ips);
+            if (ips >= 16 - 1) {
+                for (int i = 0; i < 16; i++) {
+                    if (x >= CHARS_PER_ROW - 1) {
+                        // epd_set_partial_window(textrow, 0, y *
+                        // CHAR_HEIGHT,
+                        //                        WIDTH, CHAR_HEIGHT);
+                        x = 0;
+                        memcpy(ps, ps + i, 16 - i);
+                        ips = 16 - ips;
+                        goto endwhile;
+                    } else {
+                        textrow_draw_unicode_point(textrow, ps[i], x);
+                        x++;
+                        // serial3("uncidode: ", ps[i], x);
+                    }
+                    // serial3("drawing pt at ", i, ps[i]);
+                }
+                // for (int j = i; j < 16 - i; j++) {
+                //     textrow_draw_unicode_point(textrow, ps[j], x++);
+                // }
+                ips = 0;
+            }
+
+            PTRESULT pr = next_codepoint(s);
+            // if (pt_isspace(pr.pt)) {
+            //     break;  // next y
+            // }
+            if (pr.evt == UTF8_INVALID) {
+                continue;
+            }
+            ps[ips++] = pr.pt;
+        }
+    endwhile:
+        // textrow_draw_unicode_point(textrow, pr.pt, x);
+        epd_set_partial_window(textrow, 0, y * CHAR_HEIGHT, WIDTH, CHAR_HEIGHT);
+    }
+    epd_refresh();
+}
+
+////////////////////////////////////////////////////////////
 
 void setup() {
     FATFS fs;
@@ -199,14 +468,12 @@ void setup() {
     res = pf_mount(&fs);
     if (res) {
         Serial.println(F("Failed to mount fs."));
-        render_fresult(res, textrow);
         while (1)
             ;
     }
 
     res = pf_opendir(&dir, "/");
     if (res) {
-        render_fresult(res, textrow);
         while (1)
             ;
     }
@@ -215,7 +482,6 @@ void setup() {
     while (1) {
         res = pf_readdir(&dir, &fno);
         if (res != FR_OK) {
-            render_fresult(res, textrow);
             while (1)
                 ;
         }
@@ -239,10 +505,14 @@ void setup() {
     // Open file
     res = pf_open(fno.fname);
     if (res) {
-        render_fresult(res, textrow);
         while (1)
             ;
     }
+
+    State state = new_state(&fs);
+    show_page(&state);
+    while (1)
+        ;
 
     // SEEK AHEAD
     // pf_lseek(430606);
@@ -264,7 +534,6 @@ void setup() {
         Serial.println(fs.fptr);
         if (p.fres != FR_OK) {
             Serial.println(F("draw_page retured bad FRESULT."));
-            render_fresult(p.fres, textrow);
             while (1)
                 ;
         }
