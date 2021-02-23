@@ -125,6 +125,8 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             }
 
             // :: Decode next utf-8 and add it to row
+            // readcount is better than sizeof(buf) here because readcount will
+            // handle unfilled pages (eof)
             auto res = utf8_simple3(buf + bufidx, readcount - bufidx);
             // Serial.println(res.cp);
 
