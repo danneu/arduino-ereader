@@ -2165,19 +2165,24 @@ const uint8_t *const glyphs_4[112] PROGMEM = {
 
 uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) {
     if (codepoint >= 32 && codepoint <= 127) {
-        memcpy_P(buf, pgm_read_word(&(glyphs_0[codepoint - 32])), 16);
+        memcpy_P(buf, (uint8_t *)pgm_read_word(&(glyphs_0[codepoint - 32])),
+                 16);
         return 0;
     } else if (codepoint >= 128 && codepoint <= 255) {
-        memcpy_P(buf, pgm_read_word(&(glyphs_1[codepoint - 128])), 16);
+        memcpy_P(buf, (uint8_t *)pgm_read_word(&(glyphs_1[codepoint - 128])),
+                 16);
         return 0;
     } else if (codepoint >= 256 && codepoint <= 383) {
-        memcpy_P(buf, pgm_read_word(&(glyphs_2[codepoint - 256])), 16);
+        memcpy_P(buf, (uint8_t *)pgm_read_word(&(glyphs_2[codepoint - 256])),
+                 16);
         return 0;
     } else if (codepoint >= 384 && codepoint <= 591) {
-        memcpy_P(buf, pgm_read_word(&(glyphs_3[codepoint - 384])), 16);
+        memcpy_P(buf, (uint8_t *)pgm_read_word(&(glyphs_3[codepoint - 384])),
+                 16);
         return 0;
     } else if (codepoint >= 8192 && codepoint <= 8303) {
-        memcpy_P(buf, pgm_read_word(&(glyphs_4[codepoint - 8192])), 16);
+        memcpy_P(buf, (uint8_t *)pgm_read_word(&(glyphs_4[codepoint - 8192])),
+                 16);
         return 0;
     } else {
         return 1;

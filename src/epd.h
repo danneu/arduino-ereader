@@ -1,6 +1,21 @@
 #pragma once
 
+#include <stdint.h>
+
 namespace epd {
+
+// Some waveforms I've collected so far
+enum CannedLUT { FullRefresh, PartialRefresh, QuickRefresh };
+
+// Lookup table that tells the display how to handle refreshing
+// Struct is 212 bytes total
+struct WaveformLUT {
+    uint8_t vcom[44];
+    uint8_t ww[42];
+    uint8_t bw[42];
+    uint8_t wb[42];
+    uint8_t bb[42];
+};
 enum Cmd {
     PANEL_SETTING = 0x00,
     POWER_SETTING = 0x01,
@@ -45,6 +60,8 @@ void init();
 void clear();
 void reset();
 void sendCommand(Cmd cmd);
+void sendData(unsigned char byte);
+void setLUT(CannedLUT lut);
 void refreshDisplay();
 void setPartialWindow(const unsigned char* buffer_black, int x, int y, int w,
                       int l);

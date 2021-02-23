@@ -121,19 +121,6 @@ void setPartialWindow(const unsigned char* buffer_black, int x, int y, int w,
     sendCommand(Cmd::PARTIAL_OUT);
 }
 
-// Some waveforms I've collected so far
-enum CannedLUT { FullRefresh, PartialRefresh, QuickRefresh };
-
-// Lookup table that tells the display how to handle refreshing
-// Struct is 212 bytes total
-struct WaveformLUT {
-    uint8_t vcom[44];
-    uint8_t ww[42];
-    uint8_t bw[42];
-    uint8_t wb[42];
-    uint8_t bb[42];
-};
-
 void setLUTWaveform(WaveformLUT lut) {
     sendCommand(Cmd::LUT_FOR_VCOM);
     for (int i = 0; i < 44; i++) sendData(lut.vcom[i]);
