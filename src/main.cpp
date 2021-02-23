@@ -1,11 +1,11 @@
 #include <Arduino.h>
-#include <SPI.h>
-
+// #include <SPI.h>
 #include "config.h"
 #include "epd.h"
 #include "glyphs.h"
 #include "pff3a/source/diskio.h"
 #include "pff3a/source/pff.h"
+#include "spi.h"
 #include "utf8.h"
 
 // TODO: http://elm-chan.org/docs/mmc/mmc_e.html
@@ -67,8 +67,8 @@ void set_glyph(uint32_t cp, uint16_t row, uint16_t col) {
         glyph[i] = ~glyph[i];
     }
 
-    epd::setPartialWindow(glyph, col * CHAR_WIDTH, row * CHAR_HEIGHT,
-                          CHAR_WIDTH, CHAR_HEIGHT);
+    epd_set_partial_window(glyph, col * CHAR_WIDTH, row * CHAR_HEIGHT,
+                           CHAR_WIDTH, CHAR_HEIGHT);
 }
 
 PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
@@ -131,8 +131,8 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             if (res.evt == UTF8_EOF) {
                 if (p.eof) {
                     // make sure we paint our progress
-                    epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH,
-                                          CHAR_HEIGHT);
+                    epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
+                                           CHAR_HEIGHT);
                     goto exit;
                 }
 
@@ -163,11 +163,11 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             }
             textrow_draw_unicode_point(textrow, res.cp, x);
         }
-        epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
+        epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
 exit:
 
-    epd::refreshDisplay();
+    epd_refresh();
 
     // Serial.print("BUfidx ended at: ");
     // Serial.write(bufidx);
@@ -185,13 +185,13 @@ void setup() {
     UINT readcount;
 
     Serial.begin(9600);
-    SPI.begin();
+    spi_begin();
 
     // SD card chip select
     pinMode(SD_CS_PIN, OUTPUT);
 
-    epd::init();
-    epd::clear();
+    epd_init();
+    epd_clear();
 
     disk_initialize();
     delay(100);

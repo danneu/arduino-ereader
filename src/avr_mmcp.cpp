@@ -3,26 +3,27 @@
 /*-------------------------------------------------------------------------*/
 
 #include <Arduino.h>
-#include <SPI.h>
 
 #include "pff3a/source/diskio.h"
+#include "spi.h"
 
 /*-------------------------------------------------------------------------*/
 /* Platform dependent macros and functions needed to be modified           */
 /*-------------------------------------------------------------------------*/
 
 #include <avr/io.h> /* Device specific include files */
+#include <util/delay.h>
 
-#define CS_LOW() PORTD &= ~_BV(5)  /* Set CS low */
-#define CS_HIGH() PORTD |= _BV(5)  /* Set CS high */
-#define IS_CS_LOW !(PIND & _BV(5)) /* Test if CS is low */
-#define FORWARD(d) xmit(d)         /* Data streaming function (console out) */
+#define CS_LOW() PORTD &= ~(1 << 5)  /* Set CS low */
+#define CS_HIGH() PORTD |= (1 << 5)  /* Set CS high */
+#define IS_CS_LOW !(PIND & (1 << 5)) /* Test if CS is low */
+#define FORWARD(d) xmit(d)           /* Data streaming function (console out) */
 
 #define xmit(char) Serial.write(char)
-#define dly_100us() delayMicroseconds(100)
+#define dly_100us() _delay_us(100)  // delayMicroseconds(100)
 #define init_spi() 0
-#define xmit_spi(byte) SPI.transfer(byte)
-#define rcv_spi() SPI.transfer(0xff)
+#define xmit_spi(byte) spi_xfer(byte)
+#define rcv_spi() spi_recv()
 // void xmit(char);       /* suart.S: Send a byte via software UART */
 // void dly_100us(void);  /* usi.S: Delay 100 microseconds */
 // void init_spi(void);   /* usi.S: Initialize MMC control ports */
