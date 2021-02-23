@@ -196,12 +196,14 @@ struct State {
     uint32_t ptbuf[16];
     uint8_t ptidx;
     uint32_t byteloc;
+    uint32_t fsize;
     FATFS *fs;
 };
 
-State new_state(FATFS *fs) {
+State new_state(FATFS *fs, uint32_t fsize) {
     State x = State{};
     x.fs = fs;
+    x.fsize = fsize;
     x.bufidx = sizeof(x.buf);
     return x;
 }
@@ -253,9 +255,9 @@ redecode:
             return p;
         } else {
             // Replenish buffer
-            serial1("REPLENISH");
+            serial3("REPLENISH", readcount, 64);
             memcpy(s->buf, s->buf + s->bufidx, res.width);
-            pf_read(s->buf + res.width, sizeof(s->buf) - res.width, readcount);
+            pf_read(s->buf + res.width, sizeof(s->buf) - res.width, &readcount);
             s->bufidx = 0;
             if (readcount < sizeof(s->buf)) {
                 p.eob = true;
@@ -299,15 +301,17 @@ uint8_t pt_width(uint32_t pt) {
     return 0;
 }
 
-void show_page(State *s) {
+void show_page(State *s, uint32_t offset) {
     serial("show_page fptr: ", s->fs->fptr);
-    serial("byteloc: ", s->byteloc);
+    serial("show_page offset: ", offset);
+    // serial("byteloc: ", s->byteloc);
     uint16_t x = 0, y = 0;
     uint32_t ps[16];
     uint8_t ips = 0;
 
     // Beware of drift.
-    pf_lseek(s->byteloc);
+    // pf_lseek(s->byteloc);
+    pf_lseek(min(s->fsize, offset));
 
     textrow_clear(textrow);
     while (y < ROWS_PER_PAGE) {
@@ -322,13 +326,14 @@ void show_page(State *s) {
         // }
 
         if (r.evt == UTF8_INVALID) {
-            s->byteloc += r.width;
+            // s->byteloc += r.width;
             continue;
         } else if (r.evt == UTF8_EOI) {
             serial("EOIIIIIIIIIIIIIIIII", r.width);
 
             if (r.eob) {
-                break;
+                serial1("OK");
+                return;
             }
             // don't update byteloc, just seek here next time.
 
@@ -369,7 +374,7 @@ void show_page(State *s) {
             for (int i = 0; i < ips; i++) {
                 textrow_draw_unicode_point(textrow, ps[i], x);
                 x++;
-                s->byteloc += pt_width(ps[i]);
+                // s->byteloc += pt_width(ps[i]);
             }
             ips = 0;
             epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
@@ -384,7 +389,7 @@ void show_page(State *s) {
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
                     x++;
-                    s->byteloc += pt_width(ps[i]);
+                    // s->byteloc += pt_width(ps[i]);
                 }
                 ips = 0;
             } else {
@@ -397,7 +402,7 @@ void show_page(State *s) {
                 x = 0;
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
-                    s->byteloc += pt_width(ps[i]);
+                    // s->byteloc += pt_width(ps[i]);
                     x++;
                 }
                 ips = 0;
@@ -410,7 +415,7 @@ void show_page(State *s) {
                 serial("2. is room. ips=", ips);
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
-                    s->byteloc += pt_width(ps[i]);
+                    // s->byteloc += pt_width(ps[i]);
                     x++;
                 }
                 ips = 0;
@@ -429,7 +434,7 @@ void show_page(State *s) {
                 for (uint16_t i = 0; i < thisRow; i++) {
                     serial3("ps ", ps[i], i);
                     textrow_draw_unicode_point(textrow, ps[i], x);
-                    s->byteloc += pt_width(ps[i]);
+                    // s->byteloc += pt_width(ps[i]);
                     x++;
                 }
                 epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
@@ -441,7 +446,7 @@ void show_page(State *s) {
                 // START NEXT ROW
                 for (uint16_t i = 0; i < nextRow; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
-                    s->byteloc += pt_width(ps[i]);
+                    // s->byteloc += pt_width(ps[i]);
                     x++;
                 }
 
@@ -634,9 +639,13 @@ void setup() {
     }
 
     // pf_lseek(428840);
-    State state = new_state(&fs);
-    state.byteloc = 428840;
-    show_page(&state);
+    State state = new_state(&fs, fno.fsize);
+    auto loc = 428840;
+    while (1) {
+        loc += 100;
+        show_page(&state, loc);
+        delay(2000);
+    }
     // serial("1", 2);
     // delay(2000);
     // serial("1", 2);

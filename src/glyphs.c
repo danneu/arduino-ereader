@@ -1,5 +1,9 @@
 #include "glyphs.h"
 
+#include "config.h"
+
+#if GLYPHS_ON
+
 #include <avr/pgmspace.h>
 #include <stdint.h>
 
@@ -2188,3 +2192,7 @@ uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) {
         return 1;
     }
 }
+
+#else
+uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) { return 1; }
+#endif  // GLYPHS_ON
