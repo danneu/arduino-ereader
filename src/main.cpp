@@ -207,6 +207,9 @@ PTRESULT next_codepoint(State *s) {
 redo:
 
     UINT readcount;
+    serial3("Bufidx is ", s->bufidx, readcount);
+
+    // serial("sizeof buf: ", sizeof(s->buf));
     if (s->bufidx >= sizeof(s->buf)) {
         auto res = pf_read(s->buf, sizeof(s->buf), &readcount);
         if (res != FR_OK) {
@@ -214,6 +217,7 @@ redo:
         }
         s->bufidx = 0;
         if (readcount < sizeof(s->buf)) {
+            serial("really/", "eob???");
             p.eob = true;
         }
     }
@@ -226,6 +230,7 @@ redo:
         if (p.eob) {
             return p;
         } else {
+            // memcpy(s->buf, s->buf + s->bufidx, )
             // serial("redo", 3);
             // pf_lseek(s->fs->fptr - res.width);
             // s->bufidx = sizeof(s->buf);  // now force the pf_read branch
@@ -234,7 +239,7 @@ redo:
     }
 
     if (res.evt != UTF8_OK) {
-        serial("utf8 decode bad: ", res.evt);
+        serial3("utf8 decode bad with width of: ", res.width, res.evt);
     }
     // TODO: Handle bad cases
     s->bufidx += res.width;
@@ -278,8 +283,7 @@ void show_page(State *s) {
     uint32_t ps[16];
     int ips = 0;
 
-    // Goto byteloc
-    // if (fs->fptr != offset) {
+    // Beware of drift.
     pf_lseek(s->byteloc);
 
     textrow_clear(textrow);
@@ -291,6 +295,7 @@ void show_page(State *s) {
         // }
 
         if (r.evt == UTF8_INVALID) {
+            s->byteloc += r.width;
             continue;
         } else if (r.evt == UTF8_EOI) {
             serial("EOIIIIIIIIIIIIIIIII", r.width);
@@ -308,6 +313,7 @@ void show_page(State *s) {
             // continue;
 
             // break;
+            continue;
         }
 
         // Catch NL
