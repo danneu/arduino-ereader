@@ -811,7 +811,9 @@ static void get_fileinfo(           /* No return code */
 ) {
     BYTE i, c;
     char *p;
+    char *pext;
 
+    pext = fno->fext;
     p = fno->fname;
     if (dj->sect) {
         for (i = 0; i < 8; i++) { /* Copy file name body */
@@ -826,6 +828,7 @@ static void get_fileinfo(           /* No return code */
                 c = dir[i];
                 if (c == ' ') break;
                 *p++ = c;
+                *pext++ = c;
             }
         }
         fno->fattrib = dir[DIR_Attr];              /* Attribute */
@@ -834,6 +837,7 @@ static void get_fileinfo(           /* No return code */
         fno->ftime = ld_word(dir + DIR_WrtTime);   /* Time */
     }
     *p = 0;
+    *pext = 0;
 }
 #endif /* PF_USE_DIR */
 

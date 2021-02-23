@@ -20,8 +20,9 @@ static void print_fresult(FRESULT rc) {
 }
 
 bool isTxtFile(FILINFO *f) {
-    return f->fname[11] == 'T' && f->fname[10] == 'X' && f->fname[9] == 'T' &&
-           f->fname[8] == '.';  // && f->fattrib & AM_DIR == 0;
+    // return f->fname[11] == 'T' && f->fname[10] == 'X' && f->fname[9] == 'T'
+    // &&
+    //        f->fname[8] == '.';  // && f->fattrib & AM_DIR == 0;
 }
 
 #define CHAR_HEIGHT 16
@@ -176,13 +177,6 @@ void setup() {
 
     epd::init();
     epd::clear();
-    // for (uint8_t i = 0; i < 12; i++) {
-    //     textrow_draw_unicode_point(textrow, 'A', i);
-    // }
-    // epd::setPartialWindow(textrow, 0, 0, WIDTH, CHAR_HEIGHT);
-    // epd::refreshDisplay();
-    // while (1)
-    //     ;
 
     disk_initialize();
     delay(100);
@@ -217,8 +211,10 @@ void setup() {
         }
         Serial.print(fno.fname);
         Serial.print(F("\t"));
+        Serial.print(fno.fext);
+        Serial.print(F("\t"));
         Serial.println(fno.fsize);
-        if (isTxtFile(&fno) && fno.fsize > 100) {
+        if (!strcmp(fno.fext, "TXT") && fno.fsize < 100) {
             break;
         }
     }
