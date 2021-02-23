@@ -222,27 +222,35 @@ redo:
         }
     }
 
-    // serial("readcount: ", readcount);
-    // serial("readcount - bufidx; ", readcount - s->bufidx);
+// serial("readcount: ", readcount);
+// serial("readcount - bufidx; ", readcount - s->bufidx);
+redecode:
+
     auto res = utf8_decode(s->buf + s->bufidx, readcount - s->bufidx);
 
     if (res.evt == UTF8_EOI) {
         if (p.eob) {
             return p;
         } else {
-            // memcpy(s->buf, s->buf + s->bufidx, )
-            // serial("redo", 3);
-            // pf_lseek(s->fs->fptr - res.width);
-            // s->bufidx = sizeof(s->buf);  // now force the pf_read branch
-            // above goto redo;
+            // Replenish buffer
+            memcpy(s->buf, s->buf + s->bufidx, res.width);
+            pf_read(s->buf + res.width, sizeof(s->buf) - res.width, readcount);
+            s->bufidx = 0;
+            if (readcount < sizeof(s->buf)) {
+                serial("really/", "eob???");
+                p.eob = true;
+            }
+            goto redecode;
         }
+    } else {
+        // OK | INVALID
+        s->bufidx += res.width;
     }
 
     if (res.evt != UTF8_OK) {
         serial3("utf8 decode bad with width of: ", res.width, res.evt);
     }
     // TODO: Handle bad cases
-    s->bufidx += res.width;
     // s->byteloc += res.width;
 
     p.width = res.width;
