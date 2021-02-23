@@ -13,4 +13,4 @@ uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]);
 }
 #endif
 
-#endif  // guard
+#endif  // glyphs_h

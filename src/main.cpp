@@ -124,12 +124,9 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             // [_ _ _ o o]o
             //        ^
             //        EOF width=2
-            if (res.evt == UTF8_EOS) {
+            if (res.evt == UTF8_EOI) {
                 if (p.eof) {
-                    // make sure we paint our progress
-                    epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
-                                           CHAR_HEIGHT);
-                    goto exit;
+                    continue;
                 }
 
                 p.fres = pf_lseek(fs->fptr - res.width);
@@ -161,7 +158,6 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
         }
         epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
-exit:
 
     epd_refresh();
     return p;
@@ -187,7 +183,6 @@ void setup() {
     FRESULT res;
     DIR dir;
     FILINFO fno;
-    // uint8_t buf[128];  // This holds bytes from the ebook
 
     Serial.begin(9600);
     spi_begin();
@@ -250,7 +245,10 @@ void setup() {
     }
 
     // SEEK AHEAD
-    // pf_lseek(32414);
+    // pf_lseek(430606);
+    // pf_lseek(430260);
+    // pf_lseek(429377);
+    pf_lseek(428840);
 
     PageResult p;
     // The highest byte offset that we've rendered so far.

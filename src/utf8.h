@@ -13,8 +13,8 @@ typedef enum {
     // of it, just skip it.
     UTF8_INVALID,
     // 2: Ran out of input. `width` will be
-    // the length of valid sequence we consumed when we hit EOS.
-    UTF8_EOS,
+    // the length of valid sequence we consumed when we hit EOI.
+    UTF8_EOI,
 } UTF8_STATUS;
 
 typedef struct UTF8_RESULT {
@@ -26,12 +26,12 @@ typedef struct UTF8_RESULT {
 UTF8_RESULT utf8_decode(uint8_t *s, uint16_t inputlen) {
     UTF8_RESULT d;
     if (inputlen < 1) {
-        d = UTF8_RESULT{.evt = UTF8_EOS, .width = 0, .pt = 0};
+        d = UTF8_RESULT{.evt = UTF8_EOI, .width = 0, .pt = 0};
     } else if (s[0] < 0x80) {
         d = UTF8_RESULT{.evt = UTF8_OK, .width = 1, .pt = s[0]};
     } else if ((s[0] & 0xe0) == 0xc0) {
         if (inputlen < 2) {
-            d = UTF8_RESULT{.evt = UTF8_EOS, .width = 1, .pt = 0};
+            d = UTF8_RESULT{.evt = UTF8_EOI, .width = 1, .pt = 0};
         } else if ((s[1] & 0xc0) != 0x80) {
             d = UTF8_RESULT{.evt = UTF8_INVALID, .width = 2, .pt = 0};
         } else {
@@ -42,7 +42,7 @@ UTF8_RESULT utf8_decode(uint8_t *s, uint16_t inputlen) {
         }
     } else if ((s[0] & 0xf0) == 0xe0) {
         if (inputlen < 3) {
-            d = UTF8_RESULT{.evt = UTF8_EOS, .width = 2, .pt = 0};
+            d = UTF8_RESULT{.evt = UTF8_EOI, .width = 2, .pt = 0};
         } else if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80) {
             d = UTF8_RESULT{.evt = UTF8_INVALID, .width = 3, .pt = 0};
         } else {
@@ -54,7 +54,7 @@ UTF8_RESULT utf8_decode(uint8_t *s, uint16_t inputlen) {
         }
     } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
         if (inputlen < 4) {
-            d = UTF8_RESULT{.evt = UTF8_EOS, .width = 3, .pt = 0};
+            d = UTF8_RESULT{.evt = UTF8_EOI, .width = 3, .pt = 0};
         } else if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80 ||
                    (s[3] & 0xc0) != 0x80) {
             d = UTF8_RESULT{.evt = UTF8_INVALID, .width = 4, .pt = 0};

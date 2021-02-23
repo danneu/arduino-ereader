@@ -128,7 +128,7 @@ void epd_reset() {
     delay(200);
 }
 
-// Spin until idle
+// Spin until busy pin is high again
 void wait_until_idle() {
     while (!digitalRead(EPD_BUSY_PIN))
         ;
