@@ -197,11 +197,15 @@ typedef struct PTRESULT {
     UTF8_STATUS evt;
     bool eob;
     uint32_t pt;
+    uint8_t width;
 } PTRESULT;
 
 PTRESULT next_codepoint(State *s) {
     PTRESULT p = PTRESULT{};
     p.eob = false;
+
+redo:
+
     UINT readcount;
     if (s->bufidx >= sizeof(s->buf)) {
         auto res = pf_read(s->buf, sizeof(s->buf), &readcount);
@@ -214,13 +218,29 @@ PTRESULT next_codepoint(State *s) {
         }
     }
 
+    // serial("readcount: ", readcount);
+    // serial("readcount - bufidx; ", readcount - s->bufidx);
     auto res = utf8_decode(s->buf + s->bufidx, readcount - s->bufidx);
+
+    if (res.evt == UTF8_EOI) {
+        if (p.eob) {
+            return p;
+        } else {
+            // serial("redo", 3);
+            // pf_lseek(s->fs->fptr - res.width);
+            // s->bufidx = sizeof(s->buf);  // now force the pf_read branch
+            // above goto redo;
+        }
+    }
+
     if (res.evt != UTF8_OK) {
         serial("utf8 decode bad: ", res.evt);
     }
     // TODO: Handle bad cases
     s->bufidx += res.width;
+    // s->byteloc += res.width;
 
+    p.width = res.width;
     p.evt = res.evt;
     p.pt = res.pt;
     // serial("next_codepoint: ", p.pt);
@@ -239,18 +259,55 @@ int seek_space(const uint32_t *pts, uint16_t len) {
     return -1;
 }
 
+uint8_t pt_width(uint32_t pt) {
+    if (pt <= 0x007f) return 1;
+    if (pt >= 0x0080 && pt <= 0x07ff) return 2;
+    if (pt >= 0x800 && pt <= 0xffff) return 3;
+    if (pt >= 0x010000 && pt <= 0x10ffff) return 4;
+    return 0;
+    // U+0000 to U+007F are (correctly) encoded with one byte
+    // U+0080 to U+07FF are encoded with 2 bytes
+    // U+0800 to U+FFFF are encoded with 3 bytes
+    // U+010000 to U+10FFFF are encoded with 4 bytes
+}
+
 void show_page(State *s) {
+    serial("show_page fptr: ", s->fs->fptr);
+    serial("byteloc: ", s->byteloc);
     uint16_t x = 0, y = 0;
     uint32_t ps[16];
     int ips = 0;
 
+    // Goto byteloc
+    // if (fs->fptr != offset) {
+    pf_lseek(s->byteloc);
+
     textrow_clear(textrow);
     while (y < ROWS_PER_PAGE) {
         auto r = next_codepoint(s);
+
+        // if (r.evt == UTF8_OK || r.evt == UTF8_INVALID) {
+        //     s->byteloc += r.width;
+        // }
+
         if (r.evt == UTF8_INVALID) {
             continue;
         } else if (r.evt == UTF8_EOI) {
-            serial("EOIIIIIIIIIIIIIIIII", "");
+            serial("EOIIIIIIIIIIIIIIIII", r.width);
+            // don't update byteloc, just seek here next time.
+
+            // rewind unralized codepoints
+            // while (ips) {
+            //     int blen = pt_width(ps[ips--]);
+            //     serial("blen ", blen);
+            //     s->byteloc -= blen;
+            // }
+
+            // serial("Seeking to fptr offset: ", s->fs->fptr - r.width);
+            // pf_lseek(s->fs->fptr - r.width);
+            // continue;
+
+            // break;
         }
 
         // Catch NL
@@ -266,6 +323,7 @@ void show_page(State *s) {
         // ps[ips++] = r.pt;
 
         if (r.pt == '\n') {
+            // s->byteloc += pt_width('\n');
         } else {
             ps[ips++] = r.pt;
         }
@@ -274,6 +332,7 @@ void show_page(State *s) {
             for (int i = 0; i < ips; i++) {
                 textrow_draw_unicode_point(textrow, ps[i], x);
                 x++;
+                s->byteloc += pt_width(ps[i]);
             }
             ips = 0;
             epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
@@ -289,6 +348,7 @@ void show_page(State *s) {
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
                     x++;
+                    s->byteloc += pt_width(ps[i]);
                 }
                 ips = 0;
             } else {
@@ -301,6 +361,7 @@ void show_page(State *s) {
                 x = 0;
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
+                    s->byteloc += pt_width(ps[i]);
                     x++;
                 }
                 ips = 0;
@@ -311,6 +372,7 @@ void show_page(State *s) {
                 // serial("2. is room. ips=", ips);
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
+                    s->byteloc += pt_width(ps[i]);
                     x++;
                 }
                 ips = 0;
@@ -324,6 +386,7 @@ void show_page(State *s) {
                 x = 0;
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
+                    s->byteloc += pt_width(ps[i]);
                     x++;
                 }
                 ips = 0;
@@ -334,6 +397,9 @@ void show_page(State *s) {
     }
     epd_refresh();
 
+    // for (int i = 0; i < ips; i++) {
+    //     Serial.println(ps[i]);
+    // }
     return;
 
     textrow_clear(textrow);
@@ -510,6 +576,12 @@ void setup() {
     }
 
     State state = new_state(&fs);
+    show_page(&state);
+    serial("1", 2);
+    delay(2000);
+    serial("1", 2);
+    show_page(&state);
+    delay(2000);
     show_page(&state);
     while (1)
         ;
