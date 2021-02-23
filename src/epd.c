@@ -213,9 +213,7 @@ void epd_init() {
     epd_data(0xbf);
     epd_data(0x0d);
 
-    // Set display clockspeed (default 50Mhz)
     // I couldn't get 200Mhz (max) to refresh the screen,
-    // but 150Mhz and 100Mhz work well.
     epd_cmd(PLL_CONTROL);
     epd_data(0x29);  // 0x3a: 100Mhz, 0x29: 150Mhz, 0x39  200Mhz (default 50Mhz)
 

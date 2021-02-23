@@ -1,5 +1,5 @@
 #include <Arduino.h>
-// #include <SPI.h>
+
 #include "config.h"
 #include "epd.h"
 #include "glyphs.h"
@@ -8,32 +8,22 @@
 #include "spi.h"
 #include "utf8.h"
 
-// TODO: http://elm-chan.org/docs/mmc/mmc_e.html
-// Impl examples: https://gist.github.com/RickKimball/2325039
-
-static void print_fresult(FRESULT rc) {
-    static const char str[][15] = {
-        "OK            ", "DISK_ERR      ", "NOT_READY     ", "NO_FILE       ",
-        "NO_PATH       ", "NOT_OPENED    ", "NOT_ENABLED   ", "NO_FILE_SYSTEM"};
-    // char buf[7 + 15];
-    // sprintf(buf, "Error: %s", str[rc]);
-    // Serial.println(buf);
-}
-
 #define WIDTH 400
 #define HEIGHT 300
 #define CHARS_PER_ROW WIDTH / CHAR_WIDTH
 #define ROWS_PER_PAGE HEIGHT / CHAR_HEIGHT
 #define CHARS_PER_PAGE (CHARS_PER_ROW * ROWS_PER_PAGE)
 
+// With only 2K memory, I can't do the easy thing of holding a 1:1 pixel buffer.
+// For now I'm buffering draws to the display with a `textrow` that's exactly
+// one row of text tall and stretches across the whole display.
+//
+// I don't actually need the buffer, but the textrow also has
+// the side-effect of clearing out spaces that I don't overwrite myself
+// since textrow_clear() turns it back into 0xff pixels. I'd like to instead
+// figure out how to get `set_pixel(c, x ,y)` working with epd.
 #define TEXTROW_BUFSIZE (CHAR_HEIGHT * WIDTH / CHAR_WIDTH)
 uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
-
-struct PageResult {
-    uint32_t bytesread;
-    bool eof;
-    FRESULT fres;
-};
 
 void textrow_clear(uint8_t *frame) {
     for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
@@ -42,12 +32,13 @@ void textrow_clear(uint8_t *frame) {
 }
 
 // :: TextRow graphics logic
-// c is ascii byte of character
-// idx is character index inside the text row.
-void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
+// pt is unicode code point.
+// idx is character index inside the text row, 0 to CHARS_PER_ROW.
+void textrow_draw_unicode_point(uint8_t *textrow, uint32_t pt, uint8_t idx) {
     uint8_t glyph[16];
-    auto res = get_glyph(c, glyph);
-    if (res) {
+    auto notfound = get_glyph(pt, glyph);
+    if (notfound) {
+        // silly fallback
         get_glyph('_', glyph);
     }
     for (uint8_t y = 0; y < CHAR_HEIGHT; y++) {
@@ -55,36 +46,44 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
     }
 }
 
-void set_glyph(uint32_t cp, uint16_t row, uint16_t col) {
-    uint8_t glyph[16];
-    auto res = get_glyph(cp, glyph);
-    if (res == 0) {
-        get_glyph('!', glyph);
-    }
+// The problem I had with this is that since I wasn't calling it for
+// every text tile, old glyphs from old draws were appearing.
+// void set_glyph(uint32_t cp, uint16_t row, uint16_t col) {
+//     uint8_t glyph[16];
+//     auto res = get_glyph(cp, glyph);
+//     if (res == 0) {
+//         get_glyph('!', glyph);
+//     }
 
-    // invert the colors
-    for (auto i = 0; i < 16; i++) {
-        glyph[i] = ~glyph[i];
-    }
+//     // invert the colors
+//     for (auto i = 0; i < 16; i++) {
+//         glyph[i] = ~glyph[i];
+//     }
 
-    epd_set_partial_window(glyph, col * CHAR_WIDTH, row * CHAR_HEIGHT,
-                           CHAR_WIDTH, CHAR_HEIGHT);
-}
+//     epd_set_partial_window(glyph, col * CHAR_WIDTH, row * CHAR_HEIGHT,
+//                            CHAR_WIDTH, CHAR_HEIGHT);
+// }
 
+// A bag of data that gets returned from draw_page().
+struct PageResult {
+    // bytesrealized is a count of how many bytes we read from the disk buffer.
+    uint32_t bytesrealized;
+    bool eof;
+    FRESULT fres;
+};
+
+// The stuff in this function is so annoying to test and write that I'm in no
+// rush to refactor this mess. I'll need to get a better abstraction together
+// when I want to implement something like smart word wrapping.
 PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     PageResult p = {
-        .bytesread = 0,
+        .bytesrealized = 0,
         .eof = false,
         .fres = FR_OK,
     };
     UINT readcount;
-    FRESULT res;
-    uint8_t buf[64];  // holds bytes from ebook
-    // uint8_t buf[4];                 // holds bytes from ebook
+    uint8_t buf[64];                // holds bytes from ebook
     uint32_t bufidx = sizeof(buf);  // trigger initial load
-    // uint32_t cp;                    // decoded code point
-    // uint8_t width;  // utf8 bytes consumed to produce the current unicode
-    // codepoint.
 
     if (fs->fptr != offset) {
         p.fres = pf_lseek(offset);
@@ -104,7 +103,6 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             }
             broke = false;
 
-            // broke = false;
             // load from book bytes if we need to
             if (bufidx >= sizeof(buf)) {
                 p.fres = pf_read(buf, sizeof(buf), &readcount);
@@ -113,11 +111,6 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 }
                 bufidx = 0;
                 if (readcount < sizeof(buf)) {
-                    char msg[128];
-                    sprintf(msg, "(eof?) readcount %d < sizeof(buf) %d",
-                            readcount, sizeof(buf));
-                    Serial.println(msg);
-                    // bookover = true;
                     p.eof = true;
                 }
             }
@@ -126,7 +119,6 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             // readcount is better than sizeof(buf) here because readcount will
             // handle unfilled pages (eof)
             auto res = utf8_decode(buf + bufidx, readcount - bufidx);
-            // Serial.println(res.cp);
 
             //  0 1 2 3 4
             // [_ _ _ o o]o
@@ -149,7 +141,7 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 continue;
             }
 
-            p.bytesread += res.width;
+            p.bytesrealized += res.width;
             bufidx += res.width;
 
             if (res.evt == UTF8_INVALID) {
@@ -186,7 +178,7 @@ static void render_fresult(FRESULT rc, uint8_t *frame) {
                                    WIDTH / CHAR_WIDTH / 2 - 15 / 2 + i);
     }
 
-    epd_set_partial_window(frame, 0, 300 / 2, 400, CHAR_HEIGHT);
+    epd_set_partial_window(frame, 0, HEIGHT / 2, WIDTH, CHAR_HEIGHT);
     epd_refresh();
 }
 
@@ -206,35 +198,31 @@ void setup() {
     epd_init();
     epd_clear();
 
-    // while (1)
-    //     ;
-
     disk_initialize();
     delay(100);
-
-    // render_fresult(FR_NO_FILE, textrow);
-    // delay(5000);
 
     res = pf_mount(&fs);
     if (res) {
         Serial.println(F("Failed to mount fs."));
-        print_fresult(res);
-    } else {
-        Serial.println(F("MOUNTED!"));
+        render_fresult(res, textrow);
+        while (1)
+            ;
     }
 
     res = pf_opendir(&dir, "/");
     if (res) {
-        Serial.print(F("Failed to opendir. Error code: "));
-        print_fresult(res);
+        render_fresult(res, textrow);
+        while (1)
+            ;
     }
 
     // Read directory
     while (1) {
         res = pf_readdir(&dir, &fno);
         if (res != FR_OK) {
-            Serial.println(F("Error at readdir."));
-            print_fresult(res);
+            render_fresult(res, textrow);
+            while (1)
+                ;
         }
 
         // end of listings
@@ -253,20 +241,16 @@ void setup() {
         }
     }
 
-    Serial.println(F("Found ebook."));
-    // while (true)
-    //     ;
-
     // Open file
     res = pf_open(fno.fname);
     if (res) {
-        print_fresult(res);
+        render_fresult(res, textrow);
         while (1)
             ;
     }
 
     // SEEK AHEAD
-    pf_lseek(32414);
+    // pf_lseek(32414);
 
     PageResult p;
     // The highest byte offset that we've rendered so far.
@@ -291,11 +275,9 @@ void setup() {
             while (1)
                 ;
         }
-        byteloc += p.bytesread;
-        // delay(3000);
+        byteloc += p.bytesrealized;
+        delay(3000);
     }
 }
 
-void loop() {
-    // put your main code here, to run repeatedly:
-}
+void loop() {}

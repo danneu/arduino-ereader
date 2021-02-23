@@ -32,3 +32,6 @@ Loading Arduino's SD card library immediately eats over 700 bytes of global vari
 I use the [Petit FAT](http://elm-chan.org/fsw/ff/00index_p.html) library which doesn't
 
 ## Thoughts
+
+## Word wrap
+
