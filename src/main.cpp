@@ -232,7 +232,6 @@ redo:
         }
         s->bufidx = 0;
         if (readcount < sizeof(s->buf)) {
-            serial("really/", "eob???");
             p.eob = true;
         }
     }
@@ -244,10 +243,10 @@ redecode:
     auto res = utf8_decode(s->buf + s->bufidx, readcount - s->bufidx);
 
     if (res.evt == UTF8_OK) {
-        serial3("utf8-decoded: ", res.pt, res.width);
+        // serial3("utf8-decoded: ", res.pt, res.width);
     }
     if (res.evt != UTF8_OK) {
-        serial3("utf8 decode bad with width of: ", res.width, res.evt);
+        // sal3("utf8 decode bad with width of: ", res.width, res.evt);
     }
     if (res.evt == UTF8_EOI) {
         if (p.eob) {
@@ -259,10 +258,10 @@ redecode:
             pf_read(s->buf + res.width, sizeof(s->buf) - res.width, readcount);
             s->bufidx = 0;
             if (readcount < sizeof(s->buf)) {
-                serial("really/", "eob???");
                 p.eob = true;
+            } else {
+                goto redecode;
             }
-            goto redecode;
         }
     } else {
         // OK | INVALID
@@ -305,7 +304,7 @@ void show_page(State *s) {
     serial("byteloc: ", s->byteloc);
     uint16_t x = 0, y = 0;
     uint32_t ps[16];
-    int ips = 0;
+    uint8_t ips = 0;
 
     // Beware of drift.
     pf_lseek(s->byteloc);
@@ -313,6 +312,10 @@ void show_page(State *s) {
     textrow_clear(textrow);
     while (y < ROWS_PER_PAGE) {
         auto r = next_codepoint(s);
+
+        // if (r.eob) {
+        //     return;
+        // }
 
         // if (r.evt == UTF8_OK || r.evt == UTF8_INVALID) {
         //     s->byteloc += r.width;
@@ -323,6 +326,10 @@ void show_page(State *s) {
             continue;
         } else if (r.evt == UTF8_EOI) {
             serial("EOIIIIIIIIIIIIIIIII", r.width);
+
+            if (r.eob) {
+                break;
+            }
             // don't update byteloc, just seek here next time.
 
             // rewind unralized codepoints
@@ -371,7 +378,6 @@ void show_page(State *s) {
             x = 0;
             y++;
         } else if (pt_isspace(r.pt)) {
-            serial("isspace x=", x);
             // ips is distance
             if (x + ips < CHARS_PER_ROW) {
                 // serial("2. is room. ips=", ips);
@@ -418,10 +424,6 @@ void show_page(State *s) {
                 // are going to hard-break it
                 uint16_t thisRow = min(ips, CHARS_PER_ROW - x);
                 uint16_t nextRow = max(0, ips - thisRow);
-                if (thisRow + nextRow != ips) {
-                    serial("wtf come look", " at my logic");
-                }
-                serial("test ips: ", ips);
 
                 // THIS ROW
                 for (uint16_t i = 0; i < thisRow; i++) {
@@ -437,13 +439,12 @@ void show_page(State *s) {
                 x = 0;
 
                 // START NEXT ROW
-                for (int i = 0; i < nextRow; i++) {
+                for (uint16_t i = 0; i < nextRow; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
                     s->byteloc += pt_width(ps[i]);
                     x++;
                 }
 
-                serial("iiiiiiiiiii", "");
                 // Done
                 ips = 0;
             }
@@ -619,7 +620,8 @@ void setup() {
         Serial.print(fno.fext);
         Serial.print(F("\t"));
         Serial.println(fno.fsize);
-        if (!strcmp(fno.fext, "TXT") && fno.fsize > 100) {
+        if (!strcmp(fno.fext, "TXT") &&
+            !strcmp(fno.fname, "ARRANC~2.TXT")) {  // && fno.fsize > 100) {
             break;
         }
     }
@@ -631,7 +633,9 @@ void setup() {
             ;
     }
 
+    // pf_lseek(428840);
     State state = new_state(&fs);
+    state.byteloc = 428840;
     show_page(&state);
     // serial("1", 2);
     // delay(2000);
@@ -646,33 +650,33 @@ void setup() {
     // pf_lseek(430606);
     // pf_lseek(430260);
     // pf_lseek(429377);
-    pf_lseek(428840);
+    // pf_lseek(428840);
 
-    PageResult p;
-    // The highest byte offset that we've rendered so far.
-    uint32_t byteloc = fs.fptr;  // inits to zero but also lets us seek ahead
+    // PageResult p;
+    // // The highest byte offset that we've rendered so far.
+    // uint32_t byteloc = fs.fptr;  // inits to zero but also lets us seek ahead
 
-    while (1) {
-        // fs.fptr is always higher than byteloc because fptr has read more
-        // bytes from the ebook than we've been able to render so far.
-        // e.g. fptr has loaded 64 more bytes of the book but we only
-        // had space for 12 more glyphs.
-        p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
-        Serial.print("fs.ptr: ");
-        Serial.println(fs.fptr);
-        if (p.fres != FR_OK) {
-            Serial.println(F("draw_page retured bad FRESULT."));
-            while (1)
-                ;
-        }
-        if (p.eof) {
-            Serial.println(F("end of book."));
-            while (1)
-                ;
-        }
-        byteloc += p.bytesrealized;
-        delay(3000);
-    }
+    // while (1) {
+    //     // fs.fptr is always higher than byteloc because fptr has read more
+    //     // bytes from the ebook than we've been able to render so far.
+    //     // e.g. fptr has loaded 64 more bytes of the book but we only
+    //     // had space for 12 more glyphs.
+    //     p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
+    //     Serial.print("fs.ptr: ");
+    //     Serial.println(fs.fptr);
+    //     if (p.fres != FR_OK) {
+    //         Serial.println(F("draw_page retured bad FRESULT."));
+    //         while (1)
+    //             ;
+    //     }
+    //     if (p.eof) {
+    //         Serial.println(F("end of book."));
+    //         while (1)
+    //             ;
+    //     }
+    //     byteloc += p.bytesrealized;
+    //     delay(3000);
+    // }
 }
 
 void loop() {}
