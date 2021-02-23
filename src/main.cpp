@@ -30,7 +30,7 @@ static void print_fresult(FRESULT rc) {
 uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
 
 struct PageResult {
-    uint16_t bytesread;
+    uint32_t bytesread;
     bool eof;
     FRESULT fres;
 };
@@ -113,6 +113,10 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 }
                 bufidx = 0;
                 if (readcount < sizeof(buf)) {
+                    char msg[128];
+                    sprintf(msg, "(eof?) readcount %d < sizeof(buf) %d",
+                            readcount, sizeof(buf));
+                    Serial.println(msg);
                     // bookover = true;
                     p.eof = true;
                 }
@@ -121,14 +125,14 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
             // :: Decode next utf-8 and add it to row
             // readcount is better than sizeof(buf) here because readcount will
             // handle unfilled pages (eof)
-            auto res = utf8_simple3(buf + bufidx, readcount - bufidx);
+            auto res = utf8_decode(buf + bufidx, readcount - bufidx);
             // Serial.println(res.cp);
 
             //  0 1 2 3 4
             // [_ _ _ o o]o
             //        ^
             //        EOF width=2
-            if (res.evt == UTF8_EOF) {
+            if (res.evt == UTF8_EOS) {
                 if (p.eof) {
                     // make sure we paint our progress
                     epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
@@ -152,27 +156,22 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 continue;
             }
 
-            if (res.cp == '\n') {
+            if (res.pt == '\n') {
                 broke = true;
                 break;
             }
             // don't carry whitespace
-            if (x == 0 && (res.cp == ' ')) {
+            if (x == 0 && (res.pt == ' ')) {
                 x = -1;
                 continue;
             }
-            textrow_draw_unicode_point(textrow, res.cp, x);
+            textrow_draw_unicode_point(textrow, res.pt, x);
         }
         epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
 exit:
 
     epd_refresh();
-
-    // Serial.print("BUfidx ended at: ");
-    // Serial.write(bufidx);
-
-    // p.fres = FR_OK;
     return p;
 }
 
@@ -197,7 +196,6 @@ void setup() {
     DIR dir;
     FILINFO fno;
     // uint8_t buf[128];  // This holds bytes from the ebook
-    UINT readcount;
 
     Serial.begin(9600);
     spi_begin();
@@ -214,8 +212,8 @@ void setup() {
     disk_initialize();
     delay(100);
 
-    render_fresult(FR_NO_FILE, textrow);
-    delay(5000);
+    // render_fresult(FR_NO_FILE, textrow);
+    // delay(5000);
 
     res = pf_mount(&fs);
     if (res) {
@@ -267,23 +265,34 @@ void setup() {
             ;
     }
 
+    // SEEK AHEAD
+    pf_lseek(32414);
+
     PageResult p;
-    auto byteloc = 0;
+    // The highest byte offset that we've rendered so far.
+    uint32_t byteloc = fs.fptr;  // inits to zero but also lets us seek ahead
 
     while (1) {
+        // fs.fptr is always higher than byteloc because fptr has read more
+        // bytes from the ebook than we've been able to render so far.
+        // e.g. fptr has loaded 64 more bytes of the book but we only
+        // had space for 12 more glyphs.
         p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
+        Serial.print("fs.ptr: ");
+        Serial.println(fs.fptr);
         if (p.fres != FR_OK) {
-            Serial.println("draw_page retured bad FRESULT.");
+            Serial.println(F("draw_page retured bad FRESULT."));
+            render_fresult(p.fres, textrow);
             while (1)
                 ;
         }
         if (p.eof) {
-            Serial.println("end of book.");
+            Serial.println(F("end of book."));
             while (1)
                 ;
         }
         byteloc += p.bytesread;
-        delay(3000);
+        // delay(3000);
     }
 }
 

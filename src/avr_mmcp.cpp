@@ -24,12 +24,6 @@
 #define init_spi() 0
 #define xmit_spi(byte) spi_xfer(byte)
 #define rcv_spi() spi_recv()
-// void xmit(char);       /* suart.S: Send a byte via software UART */
-// void dly_100us(void);  /* usi.S: Delay 100 microseconds */
-// void init_spi(void);   /* usi.S: Initialize MMC control ports */
-// void xmit_spi(BYTE d); /* usi.S: Send a byte to the MMC */
-// BYTE rcv_spi(
-//     void); /* usi.S: Send a 0xFF to the MMC and get the received byte */
 
 /*--------------------------------------------------------------------------
 

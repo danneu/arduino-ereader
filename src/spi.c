@@ -18,4 +18,12 @@ void spi_begin() {
     DDRB |= (1 << MOSI) | (1 << SCK);
 }
 
+// Write to the SPI bus (MOSI pin) and also receive (MISO pin)
+uint8_t spi_xfer(uint8_t data) {
+    SPDR = data;
+    while (!(SPSR & (1 << SPIF)))  // Wait until transferred
+        ;
+    return SPDR;
+}
+
 uint8_t spi_recv() { return spi_xfer(0xff); }
