@@ -8,46 +8,6 @@
 
 #include <stdint.h>
 
-/* Results of Disk Functions */
-
-// inputlen tells us how many bytes we can read from input `s` so that we can
-// communicate that we need more bytes.
-// uint8_t *utf8_simple(uint8_t *s, uint16_t inputlen, long *cp,
-//                      UTF8_RESULT *res) {
-//     unsigned char *next;
-//     if (inputlen < 1) {
-//         *res = UTF8_EOF;
-//         next = s;
-//     } else if (s[0] < 0x80) {  // inputlen is at least 1
-//         *cp = s[0];
-//         *res = UTF8_OK;
-//         next = s + 1;
-//     } else if ((s[0] & 0xe0) == 0xc0) {
-//         *cp = ((long)(s[0] & 0x1f) << 6) | ((long)(s[1] & 0x3f) << 0);
-//         if ((s[1] & 0xc0) != 0x80) {
-//             *cp = -1;
-//         }
-//         next = s + 2;
-//     } else if ((s[0] & 0xf0) == 0xe0) {
-//         *cp = ((long)(s[0] & 0x0f) << 12) | ((long)(s[1] & 0x3f) << 6) |
-//               ((long)(s[2] & 0x3f) << 0);
-//         if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80) *cp = -1;
-//         next = s + 3;
-//     } else if ((s[0] & 0xf8) == 0xf0 && (s[0] <= 0xf4)) {
-//         *cp = ((long)(s[0] & 0x07) << 18) | ((long)(s[1] & 0x3f) << 12) |
-//               ((long)(s[2] & 0x3f) << 6) | ((long)(s[3] & 0x3f) << 0);
-//         if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80 ||
-//             (s[3] & 0xc0) != 0x80)
-//             *cp = -1;
-//         next = s + 4;
-//     } else {
-//         *cp = -1;      // invalid
-//         next = s + 1;  // skip this byte
-//     }
-//     if (*cp >= 0xd800 && *cp <= 0xdfff) *cp = -1;  // surrogate half
-//     return next;
-// }
-
 typedef enum {
     UTF8_OK = 0,   // 0: Function succeeded
     UTF8_INVALID,  // 1: Invalid byte sequence to decode a codepoint

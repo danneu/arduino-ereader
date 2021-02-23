@@ -39,12 +39,6 @@ void textrow_clear(uint8_t *frame) {
     for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
         frame[i] = 0xff;
     }
-    // uint16_t y, x;
-    // for (y = 0; y < CHAR_HEIGHT; y++) {
-    //     for (x = 0; x < WIDTH / CHAR_WIDTH; x++) {
-    //         frame[WIDTH / CHAR_WIDTH * y + x] = 0xff;
-    //     }
-    // }
 }
 
 // :: TextRow graphics logic
@@ -52,9 +46,9 @@ void textrow_clear(uint8_t *frame) {
 // idx is character index inside the text row.
 void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
     uint8_t glyph[16];
-    auto res = get_full_glyph(c, glyph);
-    if (res == 0) {
-        get_full_glyph('!', glyph);
+    auto res = get_glyph(c, glyph);
+    if (res) {
+        get_glyph('_', glyph);
     }
     for (uint8_t y = 0; y < CHAR_HEIGHT; y++) {
         textrow[WIDTH / 8 * y + idx] = ~glyph[y];
@@ -63,9 +57,9 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t c, uint8_t idx) {
 
 void set_glyph(uint32_t cp, uint16_t row, uint16_t col) {
     uint8_t glyph[16];
-    auto res = get_full_glyph(cp, glyph);
+    auto res = get_glyph(cp, glyph);
     if (res == 0) {
-        get_full_glyph('!', glyph);
+        get_glyph('!', glyph);
     }
 
     // invert the colors
@@ -102,11 +96,11 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
     bool broke = false;
     for (int y = 0; y < ROWS_PER_PAGE; y++) {
         textrow_clear(textrow);
+
         for (int x = 0; x < CHARS_PER_ROW; x++) {
             if (broke && x < 4) {
-                textrow_draw_unicode_point(textrow, ' ', x);
-                // set_glyph(' ', y, x);
-                continue;
+                // textrow_draw_unicode_point(textrow, ' ', x);
+                // continue;
             }
             broke = false;
 
@@ -168,7 +162,6 @@ PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
                 continue;
             }
             textrow_draw_unicode_point(textrow, res.cp, x);
-            // set_glyph(res.cp, y, x);
         }
         epd::setPartialWindow(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
     }
@@ -253,19 +246,6 @@ void setup() {
             ;
     }
 
-    // res = pf_read(buf, sizeof(buf), &readcount);
-    // if (res) {
-    //     print_fresult(res);
-    //     while (1)
-    //         ;
-    // }
-
-    // if (readcount != sizeof(buf)) {
-    //     Serial.println(F("ebook ended prematurely"));
-    //     while (1)
-    //         ;
-    // }
-
     PageResult p;
     auto byteloc = 0;
 
@@ -284,37 +264,6 @@ void setup() {
         byteloc += p.bytesread;
         delay(3000);
     }
-
-    // Serial.print("fptr is now: ");
-    // Serial.println(fs.fptr);
-    // PageResult p = draw_page(&fs, fs.fptr, textrow);
-    // if (p.fres != FR_OK) {
-    //     // print_fresult(p.fres);
-    //     while (true)
-    //         ;
-    // }
-    // byteloc += p.bytesread;
-    // Serial.print("PageResult.bytesdecoded: ");
-    // Serial.println(p.bytesread);
-    // Serial.print("fptr is now: ");
-    // Serial.println(fs.fptr);
-
-    // while (true)
-    //     ;
-
-    // // fptr = 640
-    // // bytesdec = 582
-    // delay(2000);
-    // p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
-    // byteloc += p.bytesread;
-    // Serial.print("PageResult.bytesdecoded: ");
-    // Serial.println(p.bytesread);
-    // Serial.print("fptr is now: ");
-    // Serial.println(fs.fptr);
-
-    // delay(2000);
-    // p = draw_page(&fs, fs.fptr - (fs.fptr - byteloc), textrow);
-    // byteloc += p.bytesread;
 }
 
 void loop() {
