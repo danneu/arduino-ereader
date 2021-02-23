@@ -1,11 +1,9 @@
 #include "glyphs.h"
 
-#include "config.h"
-
-#if GLYPHS_ON
-
 #include <avr/pgmspace.h>
 #include <stdint.h>
+
+#include "config.h"
 
 const uint8_t glyph_0_0[16] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -313,6 +311,7 @@ const uint8_t *const glyphs_0[96] PROGMEM = {
     glyph_0_78, glyph_0_79, glyph_0_80, glyph_0_81, glyph_0_82, glyph_0_83,
     glyph_0_84, glyph_0_85, glyph_0_86, glyph_0_87, glyph_0_88, glyph_0_89,
     glyph_0_90, glyph_0_91, glyph_0_92, glyph_0_93, glyph_0_94, glyph_0_95};
+
 const uint8_t glyph_1_0[16] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                        0x00, 0x00, 0x00, 0x00};
@@ -725,6 +724,8 @@ const uint8_t *const glyphs_1[128] PROGMEM = {
     glyph_1_115, glyph_1_116, glyph_1_117, glyph_1_118, glyph_1_119,
     glyph_1_120, glyph_1_121, glyph_1_122, glyph_1_123, glyph_1_124,
     glyph_1_125, glyph_1_126, glyph_1_127};
+
+#if GLYPHS_ON
 const uint8_t glyph_2_0[16] PROGMEM = {0x00, 0x3C, 0x00, 0x00, 0x18, 0x24,
                                        0x24, 0x42, 0x42, 0x7E, 0x42, 0x42,
                                        0x42, 0x42, 0x00, 0x00};
@@ -2193,6 +2194,20 @@ uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) {
     }
 }
 
+// uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) { return 1; }
+
 #else
-uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) { return 1; }
-#endif  // GLYPHS_ON
+uint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) {
+    if (codepoint >= 32 && codepoint <= 127) {
+        memcpy_P(buf, (uint8_t *)pgm_read_word(&(glyphs_0[codepoint - 32])),
+                 16);
+        return 0;
+    } else if (codepoint >= 128 && codepoint <= 255) {
+        memcpy_P(buf, (uint8_t *)pgm_read_word(&(glyphs_1[codepoint - 128])),
+                 16);
+        return 0;
+    } else {
+        return 1;
+    }
+}
+#endif
