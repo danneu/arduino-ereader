@@ -8,6 +8,19 @@
 #include "spi.h"
 #include "utf8.h"
 
+#define max(a, b)               \
+    ({                          \
+        __typeof__(a) _a = (a); \
+        __typeof__(b) _b = (b); \
+        _a > _b ? _a : _b;      \
+    })
+#define min(a, b)               \
+    ({                          \
+        __typeof__(a) _a = (a); \
+        __typeof__(b) _b = (b); \
+        _a < _b ? _a : _b;      \
+    })
+
 #define WIDTH 400
 #define HEIGHT 300
 #define CHARS_PER_ROW WIDTH / CHAR_WIDTH
@@ -15,13 +28,15 @@
 #define CHARS_PER_PAGE (CHARS_PER_ROW * ROWS_PER_PAGE)
 
 #define serial(str, val) (Serial.print(str), Serial.println(val))
-#define serial3(str, val, val2) \
-    do {                        \
-        Serial.print(str);      \
-        Serial.print(val);      \
-        Serial.print(" :: ");   \
-        Serial.println(val2);   \
-                                \
+#define serial1(a) (Serial.println(a))
+#define serial3(a, b, c)   \
+    do {                   \
+        Serial.print(a);   \
+        Serial.print(" "); \
+        Serial.print(b);   \
+        Serial.print(" "); \
+        Serial.println(c); \
+                           \
     } while (0)
 
 // With only 2K memory, I can't do the easy thing of holding a 1:1 pixel buffer.
@@ -207,7 +222,7 @@ PTRESULT next_codepoint(State *s) {
 redo:
 
     UINT readcount;
-    serial3("Bufidx is ", s->bufidx, readcount);
+    // serial3("Bufidx is ", s->bufidx, readcount);
 
     // serial("sizeof buf: ", sizeof(s->buf));
     if (s->bufidx >= sizeof(s->buf)) {
@@ -228,11 +243,18 @@ redecode:
 
     auto res = utf8_decode(s->buf + s->bufidx, readcount - s->bufidx);
 
+    if (res.evt == UTF8_OK) {
+        serial3("utf8-decoded: ", res.pt, res.width);
+    }
+    if (res.evt != UTF8_OK) {
+        serial3("utf8 decode bad with width of: ", res.width, res.evt);
+    }
     if (res.evt == UTF8_EOI) {
         if (p.eob) {
             return p;
         } else {
             // Replenish buffer
+            serial1("REPLENISH");
             memcpy(s->buf, s->buf + s->bufidx, res.width);
             pf_read(s->buf + res.width, sizeof(s->buf) - res.width, readcount);
             s->bufidx = 0;
@@ -247,9 +269,6 @@ redecode:
         s->bufidx += res.width;
     }
 
-    if (res.evt != UTF8_OK) {
-        serial3("utf8 decode bad with width of: ", res.width, res.evt);
-    }
     // TODO: Handle bad cases
     // s->byteloc += res.width;
 
@@ -272,16 +291,13 @@ int seek_space(const uint32_t *pts, uint16_t len) {
     return -1;
 }
 
+// Move to utf8
 uint8_t pt_width(uint32_t pt) {
     if (pt <= 0x007f) return 1;
     if (pt >= 0x0080 && pt <= 0x07ff) return 2;
     if (pt >= 0x800 && pt <= 0xffff) return 3;
     if (pt >= 0x010000 && pt <= 0x10ffff) return 4;
     return 0;
-    // U+0000 to U+007F are (correctly) encoded with one byte
-    // U+0080 to U+07FF are encoded with 2 bytes
-    // U+0800 to U+FFFF are encoded with 3 bytes
-    // U+010000 to U+10FFFF are encoded with 4 bytes
 }
 
 void show_page(State *s) {
@@ -355,7 +371,7 @@ void show_page(State *s) {
             x = 0;
             y++;
         } else if (pt_isspace(r.pt)) {
-            // serial("isspace x=", x);
+            serial("isspace x=", x);
             // ips is distance
             if (x + ips < CHARS_PER_ROW) {
                 // serial("2. is room. ips=", ips);
@@ -381,9 +397,11 @@ void show_page(State *s) {
                 ips = 0;
             }
         } else if (ips >= 16 - 1) {
+            serial1("IPS is full...");
+            // serial("PS is full..", " ");
             // check if full
             if (x + ips < CHARS_PER_ROW) {
-                // serial("2. is room. ips=", ips);
+                serial("2. is room. ips=", ips);
                 for (int i = 0; i < ips; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
                     s->byteloc += pt_width(ps[i]);
@@ -391,18 +409,42 @@ void show_page(State *s) {
                 }
                 ips = 0;
             } else {
-                // serial("2. is  NOT room", "");
-                // not enough space on this row
+                // x==40 ips=15(max) MAX_X=50
+                // we can put 50-40 (10) on this row
+                // and 5 on the next
+
+                // TODO: Handle y-extreme
+                // not enough space on this row, but since the buffer is full we
+                // are going to hard-break it
+                uint16_t thisRow = min(ips, CHARS_PER_ROW - x);
+                uint16_t nextRow = max(0, ips - thisRow);
+                if (thisRow + nextRow != ips) {
+                    serial("wtf come look", " at my logic");
+                }
+                serial("test ips: ", ips);
+
+                // THIS ROW
+                for (uint16_t i = 0; i < thisRow; i++) {
+                    serial3("ps ", ps[i], i);
+                    textrow_draw_unicode_point(textrow, ps[i], x);
+                    s->byteloc += pt_width(ps[i]);
+                    x++;
+                }
                 epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
                                        CHAR_HEIGHT);
                 textrow_clear(textrow);
                 y++;
                 x = 0;
-                for (int i = 0; i < ips; i++) {
+
+                // START NEXT ROW
+                for (int i = 0; i < nextRow; i++) {
                     textrow_draw_unicode_point(textrow, ps[i], x);
                     s->byteloc += pt_width(ps[i]);
                     x++;
                 }
+
+                serial("iiiiiiiiiii", "");
+                // Done
                 ips = 0;
             }
         } else {
@@ -591,12 +633,12 @@ void setup() {
 
     State state = new_state(&fs);
     show_page(&state);
-    serial("1", 2);
-    delay(2000);
-    serial("1", 2);
-    show_page(&state);
-    delay(2000);
-    show_page(&state);
+    // serial("1", 2);
+    // delay(2000);
+    // serial("1", 2);
+    // show_page(&state);
+    // delay(2000);
+    // show_page(&state);
     while (1)
         ;
 
