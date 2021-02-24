@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef epd_h
 #define epd_h
 

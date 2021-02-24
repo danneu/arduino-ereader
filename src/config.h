@@ -1,9 +1,7 @@
-#pragma once
-
-#define GLYPHS_ON 1
-
 #ifndef config_h
 #define config_h
+
+#define GLYPHS_ON 1
 
 #define LEFT_MARGIN (1 * CHAR_WIDTH)
 #define WIDTH (400 - LEFT_MARGIN)

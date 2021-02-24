@@ -283,6 +283,19 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
                     }
                     pid = 0;  // reset the stck
                 } else {      // we donn't all fit on one row, so break
+                    // int i = 0;
+                    // // Finish out the rest of current line
+                    // for (; i < pid && x + i < CHARS_PER_ROW; i++) {
+                    //     textrow_draw_unicode_point(frame, pbuf[i], x++);
+                    // }
+                    // commitframe(y);
+                    // // Carry leftovers to next row
+                    // for (; i < pid; i++) {
+                    //     textrow_draw_unicode_point(frame, pbuf[i], x++);
+                    // }
+                    // pid = 0;
+
+                    ///////
                     serial1("case33");
                     // not all 16 fit on curr line.
                     // TODO: Handle y-axis overflow or x-acis overflow/?
