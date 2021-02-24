@@ -17,11 +17,6 @@
 //     next_page(state);
 //     prev_page(state);
 // }
-#define WIDTH 400
-#define HEIGHT 300
-#define CHAR_WIDTH 8
-#define CHAR_HEIGHT 16
-#define TEXTROW_BUFSIZE (CHAR_HEIGHT * WIDTH / CHAR_WIDTH)
 
 uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
 
@@ -199,13 +194,13 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
 //     serial1("hmm, called commitframe wheen I shouldnt");
 //     goto exit;
 // }
-#define commitframe(y)                                             \
-    do {                                                           \
-        epd_set_partial_window(frame, 0, (y * CHAR_HEIGHT), WIDTH, \
-                               CHAR_HEIGHT);                       \
-        textrow_clear(frame);                                      \
-        x = 0;                                                     \
-        y++;                                                       \
+#define commitframe(y)                                                       \
+    do {                                                                     \
+        epd_set_partial_window(frame, LEFT_MARGIN, (y * CHAR_HEIGHT), WIDTH, \
+                               CHAR_HEIGHT);                                 \
+        textrow_clear(frame);                                                \
+        x = 0;                                                               \
+        y++;                                                                 \
     } while (0)
 
     while (y < ROWS_PER_PAGE) {

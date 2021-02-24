@@ -5,6 +5,13 @@
 #ifndef config_h
 #define config_h
 
+#define LEFT_MARGIN (1 * CHAR_WIDTH)
+#define WIDTH (400 - LEFT_MARGIN)
+#define HEIGHT 300
+#define CHAR_WIDTH 8
+#define CHAR_HEIGHT 16
+#define TEXTROW_BUFSIZE (CHAR_HEIGHT * WIDTH / CHAR_WIDTH)
+
 #define CHAR_HEIGHT 16
 #define CHAR_WIDTH 8
 
