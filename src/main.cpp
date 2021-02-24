@@ -145,10 +145,15 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
     uint16_t x = 0;
     // uint16_t x = 0;
     uint16_t consumed = 0;
+    serial2("lseeking to:", offset);
     pf_lseek(offset);
     textrow_clear(frame);
 
 // aka breakline()
+// if (y >= ROWS_PER_PAGE - 1) {
+//     serial1("hmm, called commitframe wheen I shouldnt");
+//     goto exit;
+// }
 #define commitframe(y)                                             \
     do {                                                           \
         epd_set_partial_window(frame, 0, (y * CHAR_HEIGHT), WIDTH, \
@@ -209,10 +214,12 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
                     }
                     pid = 0;  // reset the stck
                 } else {      // we donn't all fit on one row, so break
-                              // not all 16 fit on curr line.
+                    serial1("case33");
+                    // not all 16 fit on curr line.
                     // TODO: Handle y-axis overflow or x-acis overflow/?
                     uint16_t currRow = min(pid, (uint16_t)CHARS_PER_ROW - x);
                     uint16_t nextRow = max(0, pid - currRow);
+                    serial3("currRow vs nextRow:", currRow, nextRow);
                     if (currRow + nextRow != 16) {
                         serial1("check math lol");
                     }
@@ -220,7 +227,6 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
                     for (uint16_t i = 0; i < currRow; i++) {
                         // serial3("ps ", ps[i], i);
                         textrow_draw_unicode_point(textrow, pbuf[i], x++);
-                        // x++;
                     }
                     commitframe(y);
                     // Handle next row
@@ -238,6 +244,7 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
         }
     }
 
+exit:
     serial3("returning from how_ffset x y:", x, y);
 
     epd_refresh();
@@ -312,7 +319,6 @@ void setup() {
     auto loc = 0;
     while (1) {
         show_offset(&state, fs.fptr, textrow);
-        loc += 100;
     }
     // while (1) {
     //     show_offset(&state, loc, textrow);
