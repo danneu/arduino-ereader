@@ -9,30 +9,6 @@
 #include "utf8.h"
 #include "util.h"
 
-#define serial1(a)         \
-    do {                   \
-        Serial.println(a); \
-    } while (0)
-#define serial(a, b)       \
-    do {                   \
-        Serial.print(a);   \
-        Serial.print(" "); \
-        Serial.println(b); \
-    } while (0)
-#define serial2(a, b)      \
-    do {                   \
-        Serial.print(a);   \
-        Serial.print(" "); \
-        Serial.println(b); \
-    } while (0)
-#define serial3(a, b, c)   \
-    do {                   \
-        Serial.print(a);   \
-        Serial.print(" "); \
-        Serial.print(b);   \
-        Serial.print(" "); \
-        Serial.println(c); \
-    } while (0)
 ////////////////////////////////////////////////////////////
 
 // void sandbox() {
@@ -106,7 +82,8 @@ PTRESULT next_codepoint(State *s) {
     // BUf has 4 or fewer items left, fill it up
     if (s->bufidx > 64 - 1 - 4) {
         // if (s->endptr - s->buf > 4) {
-        int len = 64 - s->bufidx;
+        // EXPERIMENT HERE WITH -1 OR NOT. IDX=63 SHOULDNT HAVE LEN=1 right?????
+        int len = 64 - 1 - s->bufidx;
         Serial.println("BUF almost empty");
         serial3("len", s->bufidx, len);
         UINT actual;
@@ -135,10 +112,11 @@ PTRESULT next_codepoint(State *s) {
 
     // auto res = utf8_decode(s->buf, (s->endptr--) - s->buf);
     auto res = utf8_decode(s->buf + s->bufidx, 64 - s->bufidx);
-    serial3("UTF", res.pt, res.width);
+    serial5("UTF", res.evt, res.pt, res.width, s->buf[s->bufidx]);
     if (res.evt != UTF8_OK) {
         serial("error res", "");
     }
+    // Maybe try only += width on ok/invalid?
     s->bufidx += res.width;
 
     p.evt = res.evt;
@@ -327,7 +305,7 @@ void setup() {
     State state = new_state(fs, fno.fsize);
     auto loc = 0;
     while (1) {
-        show_offset(&state, loc, textrow);
+        show_offset(&state, fs.fptr, textrow);
         loc += 100;
     }
     // while (1) {
