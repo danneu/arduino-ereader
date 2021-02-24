@@ -7,6 +7,7 @@
 #include "pff3a/source/pff.h"
 #include "spi.h"
 #include "utf8.h"
+#include "util.h"
 
 #define serial1(a)         \
     do {                   \
@@ -46,7 +47,7 @@
 #define CHAR_HEIGHT 16
 #define TEXTROW_BUFSIZE (CHAR_HEIGHT * WIDTH / CHAR_WIDTH)
 
-const uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
+uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
 
 void textrow_clear(uint8_t *frame) {
     for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
@@ -74,18 +75,18 @@ typedef struct State {
     FATFS fs;
     // char fname[];
     uint32_t fsize;
+    // TODO: CLear buffer when skipping aroun book.
     uint8_t buf[64];
     uint8_t bufidx;
-    uint8_t *endptr;
+    // uint8_t *endptr;
+    //
+    // uint32_t pbuf[16];
+    // uint8_t pidx;
 } Struct;
 
 State new_state(FATFS fs, uint32_t fsize) {
-    State state = State{.fs = fs,
-                        // .fname = fname,
-                        .fsize = fsize,
-                        .buf = {0x00},
-                        .bufidx = 64 - 1};
-    state.endptr = state.buf;
+    State state =
+        State{.fs = fs, .fsize = fsize, .buf = {0x00}, .bufidx = 64 - 1};
     return state;
 }
 
@@ -99,7 +100,6 @@ typedef struct PTRESULT {
 // When bufidx is full, its index is 0
 // Buf empty: idx 64-1
 PTRESULT next_codepoint(State *s) {
-    serial2("bidx", s->bufidx);
     PTRESULT p = PTRESULT{};
     p.eob = false;
 
@@ -110,7 +110,8 @@ PTRESULT next_codepoint(State *s) {
         Serial.println("BUF almost empty");
         serial3("len", s->bufidx, len);
         UINT actual;
-        // move the bits to front of queue and splice in the rest from S card
+        // move the bits to front of queue and splice in the rest from S
+        // card
         for (int i = 0; i < len; i++) {
             // len=4, i= 0  1  2  3.
             //        x=60 61 62 63
@@ -119,7 +120,6 @@ PTRESULT next_codepoint(State *s) {
         }
         // if len=4, we want to skip 0, 1, 2, 3.
         auto res = pf_read(s->buf + 4, 64, &actual);
-        serial2("buf[0]==buf[1]", s->buf[0] == s->buf[1]);
         if (res != FR_OK) {
             Serial.println("prob");
         }
@@ -134,6 +134,7 @@ PTRESULT next_codepoint(State *s) {
 
     // auto res = utf8_decode(s->buf, (s->endptr--) - s->buf);
     auto res = utf8_decode(s->buf + s->bufidx, 64 - s->bufidx);
+    serial3("UTF", res.pt, res.width);
     if (res.evt != UTF8_OK) {
         serial("error res", "");
     }
@@ -145,30 +146,116 @@ PTRESULT next_codepoint(State *s) {
     return p;
 }
 
+bool pt_whitespace(uint32_t pt) {
+    return pt == '\n' || pt == '\r' || pt == ' ';
+}
+
+#define ROWS_PER_PAGE (uint8_t)18  // 300/16
+#define CHARS_PER_ROW (uint8_t)50  // 400/8
+
 void show_offset(State *s, uint32_t offset, uint8_t *frame) {
-    // uint8_t y = 0;
+    uint32_t pbuf[16];
+    uint8_t pid = 0;
+    uint8_t y = 0;
+    uint16_t x = 0;
     // uint16_t x = 0;
+    uint16_t consumed = 0;
     pf_lseek(offset);
     textrow_clear(frame);
-    // do {
-    // } while (y++ < ROWS_PER_PAGE)
-    auto r = next_codepoint(s);
-    switch (r.evt) {
-        case UTF8_OK:
-            // serial3("UTF8_OK", r.pt, (char)r.pt);
-            serial2("UTF8_OK:", s->buf[s->bufidx]);
-            break;
-        case UTF8_INVALID:
-            serial1("UTF8_INVALID");
-            break;
-        case UTF8_EOI:
-            serial1("UTF8_EOI");
-            break;
 
-        default:
-            break;
+// aka breakline()
+#define commitframe(y)                                             \
+    do {                                                           \
+        epd_set_partial_window(frame, 0, (y * CHAR_HEIGHT), WIDTH, \
+                               CHAR_HEIGHT);                       \
+        textrow_clear(frame);                                      \
+        x = 0;                                                     \
+        y++;                                                       \
+    } while (0)
+
+    while (y < ROWS_PER_PAGE) {
+        // note: next_codepoint already incs bufidx
+        auto r = next_codepoint(s);
+        if (r.evt == UTF8_INVALID) {
+            // We consume the byte offset, but we ignore the byte
+            consumed += r.width;
+        } else if (r.evt == UTF8_EOI) {
+            // `next_codepoint` should be handling this for us.
+            serial1("Unexpected UTF8_EOI in show_offset.");
+        } else if (r.evt == UTF8_OK) {
+            consumed += r.width;
+            // We collect the point
+
+            // if (r.pt != '\n') {
+            //     pbuf[pid++] = r.pt;
+            // }
+            pbuf[pid++] = r.pt;
+
+            // \n is special case
+            // TODO: Don't add it to pbuf
+            if (r.pt == '\n') {
+                for (int i = 0; i < pid; i++) {
+                    textrow_draw_unicode_point(frame, pbuf[i], x++);
+                }
+                pid = 0;  // reset the stck
+                commitframe(y);
+                continue;
+            } else if (pt_whitespace(r.pt)) {
+                // spaces are a natural break point
+                if (x + pid < CHARS_PER_ROW) {
+                    for (int i = 0; i < pid; i++) {
+                        textrow_draw_unicode_point(frame, pbuf[i], x++);
+                    }
+                    pid = 0;  // reset the stck
+                } else {      // we donn't all fit on one row, so break
+                    commitframe(y);
+                    for (int i = 0; i < pid; i++) {
+                        textrow_draw_unicode_point(textrow, pbuf[i], x++);
+                    }
+                    pid = 0;
+                }
+            } else if (pid >= 16 - 1) {
+                // buf is full so we're going to force-draw the codepoints
+                // break-all style
+                if (x + pid < CHARS_PER_ROW) {
+                    // all 16 fit on current line
+                    for (int i = 0; i < pid; i++) {
+                        textrow_draw_unicode_point(frame, pbuf[i], x++);
+                    }
+                    pid = 0;  // reset the stck
+                } else {      // we donn't all fit on one row, so break
+                              // not all 16 fit on curr line.
+                    // TODO: Handle y-axis overflow or x-acis overflow/?
+                    uint16_t currRow = min(pid, (uint16_t)CHARS_PER_ROW - x);
+                    uint16_t nextRow = max(0, pid - currRow);
+                    if (currRow + nextRow != 16) {
+                        serial1("check math lol");
+                    }
+                    // Handle current row
+                    for (uint16_t i = 0; i < currRow; i++) {
+                        // serial3("ps ", ps[i], i);
+                        textrow_draw_unicode_point(textrow, pbuf[i], x++);
+                        // x++;
+                    }
+                    commitframe(y);
+                    // Handle next row
+
+                    for (uint16_t i = 0; i < nextRow; i++) {
+                        textrow_draw_unicode_point(textrow, pbuf[i], x++);
+                    }
+
+                    // Reset the buffer
+                    pid = 0;
+                }
+            } else {
+                // TODO: Handle more cases
+            }
+        }
     }
-    // if (r.evt == UTF8_OK) Serial.println(r.width);
+
+    serial3("returning from how_ffset x y:", x, y);
+
+    return epd_refresh();
 }
 
 void setup() {
@@ -183,8 +270,8 @@ void setup() {
     // SD card chip select
     pinMode(SD_CS_PIN, OUTPUT);
 
-    // epd_init();
-    // epd_clear();
+    epd_init();
+    epd_clear();
 
     disk_initialize();
     delay(100);
@@ -239,9 +326,13 @@ void setup() {
     auto loc = 0;
     while (1) {
         show_offset(&state, loc, textrow);
-        loc += 1;
-        // delay(200);
+        loc += 100;
     }
+    // while (1) {
+    //     show_offset(&state, loc, textrow);
+    //     loc += 1;
+    //     delay(200);
+    // }
     // serial("1", 2);
     // delay(2000);
     // serial("1", 2);
@@ -259,10 +350,12 @@ void setup() {
 
     // PageResult p;
     // // The highest byte offset that we've rendered so far.
-    // uint32_t byteloc = fs.fptr;  // inits to zero but also lets us seek ahead
+    // uint32_t byteloc = fs.fptr;  // inits to zero but also lets us seek
+    // ahead
 
     // while (1) {
-    //     // fs.fptr is always higher than byteloc because fptr has read more
+    //     // fs.fptr is always higher than byteloc because fptr has read
+    //     more
     //     // bytes from the ebook than we've been able to render so far.
     //     // e.g. fptr has loaded 64 more bytes of the book but we only
     //     // had space for 12 more glyphs.

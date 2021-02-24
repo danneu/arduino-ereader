@@ -1,6 +1,6 @@
 #pragma once
 
-#define GLYPHS_ON 0
+#define GLYPHS_ON 1
 
 #ifndef config_h
 #define config_h
