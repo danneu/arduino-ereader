@@ -157,6 +157,11 @@ PTRESULT next_codepoint(State *s) {
         // s->bufidx += 1;
     }
     s->bufidx += res.width;
+    if (s->bufidx > 64) {
+        serial1("wffffffffff");
+        while (1)
+            ;
+    }
 
     p.evt = res.evt;
     p.pt = res.pt;
@@ -221,12 +226,28 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
             // \n is special case
             // TODO: Don't add it to pbuf
             if (r.pt == '\n') {
-                for (int i = 0; i < pid; i++) {
-                    textrow_draw_unicode_point(frame, pbuf[i], x++);
-                }
-                pid = 0;  // reset the stck
                 commitframe(y);
-                continue;
+                for (int i = 0; i < pid; i++) {
+                    textrow_draw_unicode_point(textrow, pbuf[i], x++);
+                }
+                pid = 0;
+                // if (x + pid < CHARS_PER_ROW) {
+                //     for (int i = 0; i < pid; i++) {
+                //         textrow_draw_unicode_point(frame, pbuf[i], x++);
+                //     }
+                //     pid = 0;  // reset the stck
+                // } else {      // we donn't all fit on one row, so break
+                // }
+
+                // for (int i = 0; i < pid; i++) {
+                //     if (x + 1 >= CHARS_PER_ROW) {
+                //         ABORT("OOP");
+                //     }
+                //     textrow_draw_unicode_point(frame, pbuf[i], x++);
+                // }
+                // pid = 0;  // reset the stck
+                // commitframe(y);
+                // continue;
             } else if (pt_whitespace(r.pt)) {
                 // spaces are a natural break point
                 if (x + pid < CHARS_PER_ROW) {
@@ -242,9 +263,11 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
                     pid = 0;
                 }
             } else if (pid >= 16) {
+                serial1("pid >= 16");
                 // buf is full so we're going to force-draw the codepoints
                 // break-all style
                 if (x + pid < CHARS_PER_ROW) {
+                    serial1("x + pid < CHARSPERROW");
                     // all 16 fit on current line
                     for (int i = 0; i < pid; i++) {
                         textrow_draw_unicode_point(frame, pbuf[i], x++);
