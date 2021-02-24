@@ -111,13 +111,19 @@ PTRESULT next_codepoint(State *s) {
     }
 
     // auto res = utf8_decode(s->buf, (s->endptr--) - s->buf);
+    // TODO: SHould I Lisetn to `actual` here?
     auto res = utf8_decode(s->buf + s->bufidx, 64 - s->bufidx);
     serial5("UTF", res.evt, res.pt, res.width, s->buf[s->bufidx]);
     if (res.evt != UTF8_OK) {
         serial("error res", "");
     }
-    // Maybe try only += width on ok/invalid?
-    s->bufidx += res.width;
+
+    if (res.evt == UTF8_OK || res.evt == UTF8_INVALID) {
+        // Maybe try only += width on ok/invalid?
+        // Wait, adding width doesn't make any sense lol.
+        // s->bufidx += res.width;
+        s->bufidx += 1;
+    }
 
     p.evt = res.evt;
     p.pt = res.pt;
