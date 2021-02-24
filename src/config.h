@@ -14,6 +14,8 @@
 
 #define CHAR_HEIGHT 16
 #define CHAR_WIDTH 8
+#define ROWS_PER_PAGE (uint8_t)(HEIGHT / CHAR_HEIGHT)
+#define CHARS_PER_ROW (uint8_t)(WIDTH / CHAR_WIDTH)
 
 #define SD_CS_PIN 5  // D5
 

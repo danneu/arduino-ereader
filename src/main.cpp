@@ -175,9 +175,6 @@ bool pt_whitespace(uint32_t pt) {
     return pt == '\n' || pt == '\r' || pt == ' ';
 }
 
-#define ROWS_PER_PAGE (uint8_t)18  // 300/16
-#define CHARS_PER_ROW (uint8_t)50  // 400/8
-
 uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
     uint32_t pbuf[16];
     uint8_t pid = 0;
