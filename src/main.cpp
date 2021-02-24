@@ -73,6 +73,7 @@ typedef struct PTRESULT {
     uint8_t width;
 } PTRESULT;
 
+UINT actual = 64;
 // When bufidx is full, its index is 0
 // Buf empty: idx 64-1
 
@@ -89,22 +90,28 @@ PTRESULT next_codepoint(State *s) {
         int len = 64 - 1 - s->bufidx;
         Serial.println("BUF almost empty");
         serial3("len", s->bufidx, len);
-        UINT actual;
         // move the bits to front of queue and splice in the rest from S
         // card
-        for (int i = 0; i < len; i++) {
-            // len=4, i= 0  1  2  3.
-            //        x=60 61 62 63
-            auto oldidx = i + 64 - len;
-            s->buf[i] = s->buf[oldidx];
-        }
+
+        // for (int i = 0; i < len; i++) {
+        //     // len=4, i= 0  1  2  3.
+        //     //        x=60 61 62 63
+        //     auto oldidx = i + 64 - len;
+        //     s->buf[i] = s->buf[oldidx];
+        // }
+
         // if len=4, we want to skip 0, 1, 2, 3.
         // auto res = pf_read(s->buf + 4, 64, &actual);
         // auto res = pf_read(s->buf + len, 64 - len, &actual);
+
         // EDIT: I got it to go to the next page with this line.
         // I Should expiriment with taking out the len shit as its prob all
         // offbyone erors
-        auto res = pf_read(s->buf, 64, &actual);
+        // auto res = pf_read(s->buf, 64, &actual);
+
+        // I want to get this 4byte offset working tho
+        auto res = pf_read(s->buf + len, 64 - len, &actual);
+
         if (res != FR_OK) {
             Serial.println("prob");
         }
@@ -119,7 +126,7 @@ PTRESULT next_codepoint(State *s) {
 
     // auto res = utf8_decode(s->buf, (s->endptr--) - s->buf);
     // TODO: SHould I Lisetn to `actual` here?
-    auto res = utf8_decode(s->buf + s->bufidx, 64 - s->bufidx);
+    auto res = utf8_decode(s->buf + s->bufidx, actual - s->bufidx);
     if (true || res.evt != UTF8_OK) {
         serial5("UTF", res.evt, res.pt, res.width, s->buf[s->bufidx]);
     }
@@ -133,9 +140,9 @@ PTRESULT next_codepoint(State *s) {
     if (res.evt == UTF8_OK || res.evt == UTF8_INVALID) {
         // Maybe try only += width on ok/invalid?
         // Wait, adding width doesn't make any sense lol. <-- NVM YES IT DOES
-        s->bufidx += res.width;
         // s->bufidx += 1;
     }
+    s->bufidx += res.width;
 
     p.evt = res.evt;
     p.pt = res.pt;
