@@ -226,11 +226,21 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
             // \n is special case
             // TODO: Don't add it to pbuf
             if (r.pt == '\n') {
+                int i = 0;
+                // Finish out the rest of current line
+                for (; i < pid && x + i < CHARS_PER_ROW; i++) {
+                    textrow_draw_unicode_point(frame, pbuf[i], x++);
+                }
                 commitframe(y);
-                for (int i = 0; i < pid; i++) {
-                    textrow_draw_unicode_point(textrow, pbuf[i], x++);
+                // Carry leftovers to next row
+                for (; i < pid; i++) {
+                    textrow_draw_unicode_point(frame, pbuf[i], x++);
                 }
                 pid = 0;
+
+                // for (int i = 0; i < pid; i++) {
+                //     textrow_draw_unicode_point(textrow, pbuf[i], x++);
+                // }
                 // if (x + pid < CHARS_PER_ROW) {
                 //     for (int i = 0; i < pid; i++) {
                 //         textrow_draw_unicode_point(frame, pbuf[i], x++);
