@@ -8,27 +8,22 @@
 #include "spi.h"
 #include "utf8.h"
 
-#define max(a, b)               \
-    ({                          \
-        __typeof__(a) _a = (a); \
-        __typeof__(b) _b = (b); \
-        _a > _b ? _a : _b;      \
-    })
-#define min(a, b)               \
-    ({                          \
-        __typeof__(a) _a = (a); \
-        __typeof__(b) _b = (b); \
-        _a < _b ? _a : _b;      \
-    })
-
-#define WIDTH 400
-#define HEIGHT 300
-#define CHARS_PER_ROW WIDTH / CHAR_WIDTH
-#define ROWS_PER_PAGE HEIGHT / CHAR_HEIGHT
-#define CHARS_PER_PAGE (CHARS_PER_ROW * ROWS_PER_PAGE)
-
-#define serial(str, val) (Serial.print(str), Serial.println(val))
-#define serial1(a) (Serial.println(a))
+#define serial1(a)         \
+    do {                   \
+        Serial.println(a); \
+    } while (0)
+#define serial(a, b)       \
+    do {                   \
+        Serial.print(a);   \
+        Serial.print(" "); \
+        Serial.println(b); \
+    } while (0)
+#define serial2(a, b)      \
+    do {                   \
+        Serial.print(a);   \
+        Serial.print(" "); \
+        Serial.println(b); \
+    } while (0)
 #define serial3(a, b, c)   \
     do {                   \
         Serial.print(a);   \
@@ -36,29 +31,28 @@
         Serial.print(b);   \
         Serial.print(" "); \
         Serial.println(c); \
-                           \
     } while (0)
+////////////////////////////////////////////////////////////
 
-// With only 2K memory, I can't do the easy thing of holding a 1:1 pixel buffer.
-// For now I'm buffering draws to the display with a `textrow` that's exactly
-// one row of text tall and stretches across the whole display.
-//
-// I don't actually need the buffer, but the textrow also has
-// the side-effect of clearing out spaces that I don't overwrite myself
-// since textrow_clear() turns it back into 0xff pixels. I'd like to instead
-// figure out how to get `set_pixel(c, x ,y)` working with epd.
+// void sandbox() {
+//     State state = new_state(&fs);
+//     to_page(state, 0);
+//     next_page(state);
+//     prev_page(state);
+// }
+#define WIDTH 400
+#define HEIGHT 300
+#define CHAR_WIDTH 8
+#define CHAR_HEIGHT 16
 #define TEXTROW_BUFSIZE (CHAR_HEIGHT * WIDTH / CHAR_WIDTH)
-uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
+
+const uint8_t textrow[TEXTROW_BUFSIZE] = {0xff};
 
 void textrow_clear(uint8_t *frame) {
     for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
         frame[i] = 0xff;
     }
 }
-
-// :: TextRow graphics logic
-// pt is unicode code point.
-// idx is character index inside the text row, 0 to CHARS_PER_ROW.
 void textrow_draw_unicode_point(uint8_t *textrow, uint32_t pt, uint8_t idx) {
     uint8_t glyph[16];
     auto notfound = get_glyph(pt, glyph);
@@ -72,143 +66,28 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t pt, uint8_t idx) {
     }
 }
 
-// The problem I had with this is that since I wasn't calling it for
-// every text tile, old glyphs from old draws were appearing.
-// void set_glyph(uint32_t cp, uint16_t row, uint16_t col) {
-//     uint8_t glyph[16];
-//     auto res = get_glyph(cp, glyph);
-//     if (res == 0) {
-//         get_glyph('!', glyph);
-//     }
-
-//     // invert the colors
-//     for (auto i = 0; i < 16; i++) {
-//         glyph[i] = ~glyph[i];
-//     }
-
-//     epd_set_partial_window(glyph, col * CHAR_WIDTH, row * CHAR_HEIGHT,
-//                            CHAR_WIDTH, CHAR_HEIGHT);
-// }
-
-// A bag of data that gets returned from draw_page().
-struct PageResult {
-    // bytesrealized is a count of how many bytes we read from the disk buffer.
-    uint32_t bytesrealized;
-    bool eof;
-    FRESULT fres;
-};
-
-// The stuff in this function is so annoying to test and write that I'm in no
-// rush to refactor this mess. I'll need to get a better abstraction together
-// when I want to implement something like smart word wrapping.
-PageResult draw_page(FATFS *fs, uint32_t offset, uint8_t *textrow) {
-    PageResult p = {
-        .bytesrealized = 0,
-        .eof = false,
-        .fres = FR_OK,
-    };
-    UINT readcount;
-    uint8_t buf[64];                // holds bytes from ebook
-    uint32_t bufidx = sizeof(buf);  // trigger initial load
-
-    if (fs->fptr != offset) {
-        p.fres = pf_lseek(offset);
-        if (p.fres != FR_OK) {
-            return p;
-        }
-    }
-
-    bool broke = false;
-    for (int y = 0; y < ROWS_PER_PAGE; y++) {
-        textrow_clear(textrow);
-
-        for (int x = 0; x < CHARS_PER_ROW; x++) {
-            if (broke && x < 4) {
-                // textrow_draw_unicode_point(textrow, ' ', x);
-                // continue;
-            }
-            broke = false;
-
-            // load from book bytes if we need to
-            if (bufidx >= sizeof(buf)) {
-                p.fres = pf_read(buf, sizeof(buf), &readcount);
-                if (p.fres != FR_OK) {
-                    return p;
-                }
-                bufidx = 0;
-                if (readcount < sizeof(buf)) {
-                    p.eof = true;
-                }
-            }
-
-            // :: Decode next utf-8 and add it to row
-            // readcount is better than sizeof(buf) here because readcount will
-            // handle unfilled pages (eof)
-            auto res = utf8_decode(buf + bufidx, readcount - bufidx);
-
-            //  0 1 2 3 4
-            // [_ _ _ o o]o
-            //        ^
-            //        EOF width=2
-            if (res.evt == UTF8_EOI) {
-                if (p.eof) {
-                    continue;
-                }
-
-                p.fres = pf_lseek(fs->fptr - res.width);
-                if (p.fres != FR_OK) {
-                    return p;
-                }
-                x--;
-                bufidx = sizeof(buf);  // now force the pf_read branch above
-                continue;
-            }
-
-            p.bytesrealized += res.width;
-            bufidx += res.width;
-
-            if (res.evt == UTF8_INVALID) {
-                continue;
-            }
-
-            if (res.pt == '\n') {
-                broke = true;
-                break;
-            }
-            // don't carry whitespace
-            if (x == 0 && (res.pt == ' ')) {
-                x = -1;
-                continue;
-            }
-            textrow_draw_unicode_point(textrow, res.pt, x);
-        }
-        epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH, CHAR_HEIGHT);
-    }
-
-    epd_refresh();
-    return p;
-}
+////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////
-struct State {
-    uint8_t buf[64];
-    uint32_t bufidx;
-    uint32_t ptbuf[16];
-    uint8_t ptidx;
-    uint32_t byteloc;
+
+typedef struct State {
+    FATFS fs;
+    // char fname[];
     uint32_t fsize;
-    FATFS *fs;
-};
+    uint8_t buf[64];
+    uint8_t bufidx;
+    uint8_t *endptr;
+} Struct;
 
-State new_state(FATFS *fs, uint32_t fsize) {
-    State x = State{};
-    x.fs = fs;
-    x.fsize = fsize;
-    x.bufidx = sizeof(x.buf);
-    return x;
+State new_state(FATFS fs, uint32_t fsize) {
+    State state = State{.fs = fs,
+                        // .fname = fname,
+                        .fsize = fsize,
+                        .buf = {0x00},
+                        .bufidx = 64 - 1};
+    state.endptr = state.buf;
+    return state;
 }
-
-////////////////////////////////////////////////////////////
 
 typedef struct PTRESULT {
     UTF8_STATUS evt;
@@ -217,363 +96,80 @@ typedef struct PTRESULT {
     uint8_t width;
 } PTRESULT;
 
+// When bufidx is full, its index is 0
+// Buf empty: idx 64-1
 PTRESULT next_codepoint(State *s) {
+    serial2("bidx", s->bufidx);
     PTRESULT p = PTRESULT{};
     p.eob = false;
 
-redo:
-
-    UINT readcount;
-    // serial3("Bufidx is ", s->bufidx, readcount);
-
-    // serial("sizeof buf: ", sizeof(s->buf));
-    if (s->bufidx >= sizeof(s->buf)) {
-        auto res = pf_read(s->buf, sizeof(s->buf), &readcount);
-        if (res != FR_OK) {
-            serial("res was bad: ", res);
+    // BUf has 4 or fewer items left, fill it up
+    if (s->bufidx > 64 - 1 - 4) {
+        // if (s->endptr - s->buf > 4) {
+        int len = 64 - s->bufidx;
+        Serial.println("BUF almost empty");
+        serial3("len", s->bufidx, len);
+        UINT actual;
+        // move the bits to front of queue and splice in the rest from S card
+        for (int i = 0; i < len; i++) {
+            // len=4, i= 0  1  2  3.
+            //        x=60 61 62 63
+            auto oldidx = i + 64 - len;
+            s->buf[i] = s->buf[oldidx];
         }
-        s->bufidx = 0;
-        if (readcount < sizeof(s->buf)) {
+        // if len=4, we want to skip 0, 1, 2, 3.
+        auto res = pf_read(s->buf + 4, 64, &actual);
+        serial2("buf[0]==buf[1]", s->buf[0] == s->buf[1]);
+        if (res != FR_OK) {
+            Serial.println("prob");
+        }
+        if (actual < 64) {
+            // end of book signalled
             p.eob = true;
         }
+        // s->endptr = s->buf + actual;
+        // serial2("actual", actual);
+        s->bufidx = 0;
     }
 
-// serial("readcount: ", readcount);
-// serial("readcount - bufidx; ", readcount - s->bufidx);
-redecode:
-
-    auto res = utf8_decode(s->buf + s->bufidx, readcount - s->bufidx);
-
-    if (res.evt == UTF8_OK) {
-        // serial3("utf8-decoded: ", res.pt, res.width);
-    }
+    // auto res = utf8_decode(s->buf, (s->endptr--) - s->buf);
+    auto res = utf8_decode(s->buf + s->bufidx, 64 - s->bufidx);
     if (res.evt != UTF8_OK) {
-        // sal3("utf8 decode bad with width of: ", res.width, res.evt);
+        serial("error res", "");
     }
-    if (res.evt == UTF8_EOI) {
-        if (p.eob) {
-            return p;
-        } else {
-            // Replenish buffer
-            serial3("REPLENISH", readcount, 64);
-            memcpy(s->buf, s->buf + s->bufidx, res.width);
-            pf_read(s->buf + res.width, sizeof(s->buf) - res.width, &readcount);
-            s->bufidx = 0;
-            if (readcount < sizeof(s->buf)) {
-                p.eob = true;
-            } else {
-                goto redecode;
-            }
-        }
-    } else {
-        // OK | INVALID
-        s->bufidx += res.width;
-    }
+    s->bufidx += res.width;
 
-    // TODO: Handle bad cases
-    // s->byteloc += res.width;
-
-    p.width = res.width;
     p.evt = res.evt;
     p.pt = res.pt;
-    // serial("next_codepoint: ", p.pt);
+    p.width = res.width;
     return p;
 }
 
-bool pt_isspace(uint32_t pt) { return pt == ' ' || pt == '\n' || pt == '\r'; }
+void show_offset(State *s, uint32_t offset, uint8_t *frame) {
+    // uint8_t y = 0;
+    // uint16_t x = 0;
+    pf_lseek(offset);
+    textrow_clear(frame);
+    // do {
+    // } while (y++ < ROWS_PER_PAGE)
+    auto r = next_codepoint(s);
+    switch (r.evt) {
+        case UTF8_OK:
+            // serial3("UTF8_OK", r.pt, (char)r.pt);
+            serial2("UTF8_OK:", s->buf[s->bufidx]);
+            break;
+        case UTF8_INVALID:
+            serial1("UTF8_INVALID");
+            break;
+        case UTF8_EOI:
+            serial1("UTF8_EOI");
+            break;
 
-int seek_space(const uint32_t *pts, uint16_t len) {
-    uint16_t i = 0;
-    while (i++ < len - 1) {
-        if (pt_isspace(pts[i])) {
-            return i;
-        }
+        default:
+            break;
     }
-    return -1;
+    // if (r.evt == UTF8_OK) Serial.println(r.width);
 }
-
-// Move to utf8
-uint8_t pt_width(uint32_t pt) {
-    if (pt <= 0x007f) return 1;
-    if (pt >= 0x0080 && pt <= 0x07ff) return 2;
-    if (pt >= 0x800 && pt <= 0xffff) return 3;
-    if (pt >= 0x010000 && pt <= 0x10ffff) return 4;
-    return 0;
-}
-
-void show_page(State *s, uint32_t offset) {
-    serial("show_page fptr: ", s->fs->fptr);
-    serial("show_page offset: ", offset);
-    // serial("byteloc: ", s->byteloc);
-    uint16_t x = 0, y = 0;
-    uint32_t ps[16];
-    uint8_t ips = 0;
-
-    // Beware of drift.
-    // pf_lseek(s->byteloc);
-    pf_lseek(min(s->fsize, offset));
-
-    textrow_clear(textrow);
-    while (y < ROWS_PER_PAGE) {
-        auto r = next_codepoint(s);
-
-        // if (r.eob) {
-        //     return;
-        // }
-
-        // if (r.evt == UTF8_OK || r.evt == UTF8_INVALID) {
-        //     s->byteloc += r.width;
-        // }
-
-        if (r.evt == UTF8_INVALID) {
-            // s->byteloc += r.width;
-            continue;
-        } else if (r.evt == UTF8_EOI) {
-            serial("EOIIIIIIIIIIIIIIIII", r.width);
-
-            if (r.eob) {
-                serial1("OK");
-                return;
-            }
-            // don't update byteloc, just seek here next time.
-
-            // rewind unralized codepoints
-            // while (ips) {
-            //     int blen = pt_width(ps[ips--]);
-            //     serial("blen ", blen);
-            //     s->byteloc -= blen;
-            // }
-
-            // serial("Seeking to fptr offset: ", s->fs->fptr - r.width);
-            // pf_lseek(s->fs->fptr - r.width);
-            // continue;
-
-            // break;
-            continue;
-        }
-
-        // Catch NL
-        // if (r.pt == '\n') {
-        //     epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
-        //                            CHAR_HEIGHT);
-        //     textrow_clear(textrow);
-        //     y++;
-        //     x = 0;
-        //     continue;
-        // }
-
-        // ps[ips++] = r.pt;
-
-        if (r.pt == '\n') {
-            // s->byteloc += pt_width('\n');
-        } else {
-            ps[ips++] = r.pt;
-        }
-
-        if (r.pt == '\n') {
-            for (int i = 0; i < ips; i++) {
-                textrow_draw_unicode_point(textrow, ps[i], x);
-                x++;
-                // s->byteloc += pt_width(ps[i]);
-            }
-            ips = 0;
-            epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
-                                   CHAR_HEIGHT);
-            textrow_clear(textrow);
-            x = 0;
-            y++;
-        } else if (pt_isspace(r.pt)) {
-            // ips is distance
-            if (x + ips < CHARS_PER_ROW) {
-                // serial("2. is room. ips=", ips);
-                for (int i = 0; i < ips; i++) {
-                    textrow_draw_unicode_point(textrow, ps[i], x);
-                    x++;
-                    // s->byteloc += pt_width(ps[i]);
-                }
-                ips = 0;
-            } else {
-                // serial("2. is  NOT room", "");
-                // not enough space on this row
-                epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
-                                       CHAR_HEIGHT);
-                textrow_clear(textrow);
-                y++;
-                x = 0;
-                for (int i = 0; i < ips; i++) {
-                    textrow_draw_unicode_point(textrow, ps[i], x);
-                    // s->byteloc += pt_width(ps[i]);
-                    x++;
-                }
-                ips = 0;
-            }
-        } else if (ips >= 16 - 1) {
-            serial1("IPS is full...");
-            // serial("PS is full..", " ");
-            // check if full
-            if (x + ips < CHARS_PER_ROW) {
-                serial("2. is room. ips=", ips);
-                for (int i = 0; i < ips; i++) {
-                    textrow_draw_unicode_point(textrow, ps[i], x);
-                    // s->byteloc += pt_width(ps[i]);
-                    x++;
-                }
-                ips = 0;
-            } else {
-                // x==40 ips=15(max) MAX_X=50
-                // we can put 50-40 (10) on this row
-                // and 5 on the next
-
-                // TODO: Handle y-extreme
-                // not enough space on this row, but since the buffer is full we
-                // are going to hard-break it
-                uint16_t thisRow = min(ips, CHARS_PER_ROW - x);
-                uint16_t nextRow = max(0, ips - thisRow);
-
-                // THIS ROW
-                for (uint16_t i = 0; i < thisRow; i++) {
-                    serial3("ps ", ps[i], i);
-                    textrow_draw_unicode_point(textrow, ps[i], x);
-                    // s->byteloc += pt_width(ps[i]);
-                    x++;
-                }
-                epd_set_partial_window(textrow, 0, CHAR_HEIGHT * y, WIDTH,
-                                       CHAR_HEIGHT);
-                textrow_clear(textrow);
-                y++;
-                x = 0;
-
-                // START NEXT ROW
-                for (uint16_t i = 0; i < nextRow; i++) {
-                    textrow_draw_unicode_point(textrow, ps[i], x);
-                    // s->byteloc += pt_width(ps[i]);
-                    x++;
-                }
-
-                // Done
-                ips = 0;
-            }
-        } else {
-            // not space, and buf isn't full
-        }
-    }
-    epd_refresh();
-
-    // for (int i = 0; i < ips; i++) {
-    //     Serial.println(ps[i]);
-    // }
-    return;
-
-    textrow_clear(textrow);
-    for (y = 0; y < ROWS_PER_PAGE; y++) {
-        serial("YYYYYYY: ", y);
-        textrow_clear(textrow);
-
-        //
-        // auto space = seek_space(ps, ips);
-        // if (space > -1) {
-
-        // }
-
-        while (1) {
-            // serial3("x: ", x, ips);
-            if (ips >= 16 - 1) {
-                for (int i = 0; i < 16; i++) {
-                    if (x >= CHARS_PER_ROW - 1) {
-                        // epd_set_partial_window(textrow, 0, y *
-                        // CHAR_HEIGHT,
-                        //                        WIDTH, CHAR_HEIGHT);
-                        x = 0;
-                        memcpy(ps, ps + i, 16 - i);
-                        ips = 16 - ips;
-                        goto endwhile;
-                    } else {
-                        textrow_draw_unicode_point(textrow, ps[i], x);
-                        x++;
-                        // serial3("uncidode: ", ps[i], x);
-                    }
-                    // serial3("drawing pt at ", i, ps[i]);
-                }
-                // for (int j = i; j < 16 - i; j++) {
-                //     textrow_draw_unicode_point(textrow, ps[j], x++);
-                // }
-                ips = 0;
-            }
-
-            PTRESULT pr = next_codepoint(s);
-            // if (pt_isspace(pr.pt)) {
-            //     break;  // next y
-            // }
-            if (pr.evt == UTF8_INVALID) {
-                continue;
-            }
-            ps[ips++] = pr.pt;
-        }
-    endwhile:
-        // textrow_draw_unicode_point(textrow, pr.pt, x);
-        epd_set_partial_window(textrow, 0, y * CHAR_HEIGHT, WIDTH, CHAR_HEIGHT);
-    }
-    epd_refresh();
-}
-
-void show_pageOLD0(State *s) {
-    uint16_t x, y;
-    uint32_t ps[16];
-    int ips = 0;
-
-    textrow_clear(textrow);
-    for (y = 0; y < ROWS_PER_PAGE; y++) {
-        serial("YYYYYYY: ", y);
-        textrow_clear(textrow);
-
-        //
-        // auto space = seek_space(ps, ips);
-        // if (space > -1) {
-
-        // }
-
-        while (1) {
-            // serial3("x: ", x, ips);
-            if (ips >= 16 - 1) {
-                for (int i = 0; i < 16; i++) {
-                    if (x >= CHARS_PER_ROW - 1) {
-                        // epd_set_partial_window(textrow, 0, y *
-                        // CHAR_HEIGHT,
-                        //                        WIDTH, CHAR_HEIGHT);
-                        x = 0;
-                        memcpy(ps, ps + i, 16 - i);
-                        ips = 16 - ips;
-                        goto endwhile;
-                    } else {
-                        textrow_draw_unicode_point(textrow, ps[i], x);
-                        x++;
-                        // serial3("uncidode: ", ps[i], x);
-                    }
-                    // serial3("drawing pt at ", i, ps[i]);
-                }
-                // for (int j = i; j < 16 - i; j++) {
-                //     textrow_draw_unicode_point(textrow, ps[j], x++);
-                // }
-                ips = 0;
-            }
-
-            PTRESULT pr = next_codepoint(s);
-            // if (pt_isspace(pr.pt)) {
-            //     break;  // next y
-            // }
-            if (pr.evt == UTF8_INVALID) {
-                continue;
-            }
-            ps[ips++] = pr.pt;
-        }
-    endwhile:
-        // textrow_draw_unicode_point(textrow, pr.pt, x);
-        epd_set_partial_window(textrow, 0, y * CHAR_HEIGHT, WIDTH, CHAR_HEIGHT);
-    }
-    epd_refresh();
-}
-
-////////////////////////////////////////////////////////////
 
 void setup() {
     FATFS fs;
@@ -587,8 +183,8 @@ void setup() {
     // SD card chip select
     pinMode(SD_CS_PIN, OUTPUT);
 
-    epd_init();
-    epd_clear();
+    // epd_init();
+    // epd_clear();
 
     disk_initialize();
     delay(100);
@@ -639,12 +235,12 @@ void setup() {
     }
 
     // pf_lseek(428840);
-    State state = new_state(&fs, fno.fsize);
-    auto loc = 428840;
+    State state = new_state(fs, fno.fsize);
+    auto loc = 0;
     while (1) {
-        loc += 100;
-        show_page(&state, loc);
-        delay(2000);
+        show_offset(&state, loc, textrow);
+        loc += 1;
+        // delay(200);
     }
     // serial("1", 2);
     // delay(2000);

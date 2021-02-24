@@ -24,6 +24,8 @@ typedef struct UTF8_RESULT {
 } UTF8_RESULT;
 
 UTF8_RESULT utf8_decode(uint8_t *s, uint16_t inputlen) {
+    // Serial.print("inputlen: ");
+    // Serial.println(inputlen);
     UTF8_RESULT d;
     if (inputlen < 1) {
         d = UTF8_RESULT{.evt = UTF8_EOI, .width = 0, .pt = 0};
