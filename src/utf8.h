@@ -28,6 +28,7 @@ UTF8_RESULT utf8_decode(uint8_t *s, uint16_t inputlen) {
     // Serial.println(inputlen);
     UTF8_RESULT d;
     if (inputlen < 1) {
+        Serial.println("in <0 prt of utf8 dec");
         d = UTF8_RESULT{.evt = UTF8_EOI, .width = 0, .pt = 0};
     } else if (s[0] < 0x80) {
         d = UTF8_RESULT{.evt = UTF8_OK, .width = 1, .pt = s[0]};
