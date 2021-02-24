@@ -61,8 +61,7 @@ typedef struct State {
 } Struct;
 
 State new_state(FATFS fs, uint32_t fsize) {
-    State state =
-        State{.fs = fs, .fsize = fsize, .buf = {0x00}, .bufidx = 64 - 1};
+    State state = State{.fs = fs, .fsize = fsize, .buf = {0x00}, .bufidx = 64};
     return state;
 }
 
@@ -84,21 +83,32 @@ PTRESULT next_codepoint(State *s) {
     p.eob = false;
 
     // BUf has 4 or fewer items left, fill it up
-    if (s->bufidx > 64 - 1 - 4) {
+
+    // bufidx can be 0..63 (indexed) or 64 (empty)
+    // the item it's pointing to is the item it wants you to take.
+    // i.e. if bufidx is 63, it has that one item available before you can
+    // finally inc it to 64.
+    //
+    // idx    len  (fn idx > 64-len)
+    // 64     0    64>64-4 true
+    // 63     1    63>60
+    // 62     2
+    // 61     3
+    // 60     4    60>=60    true
+    // 59     x    59>60    false
+    if (64 - s->bufidx <= 4) {
         // if (s->endptr - s->buf > 4) {
+        int len = 64 - s->bufidx;
         // EXPERIMENT HERE WITH -1 OR NOT. IDX=63 SHOULDNT HAVE LEN=1 right?????
-        int len = 64 - 1 - s->bufidx;
         Serial.println("BUF almost empty");
-        serial3("len", s->bufidx, len);
+        serial2(":: BUF almost empty. len =", len);
+        delay(100);
+        // serial3("len", s->bufidx, len);
         // move the bits to front of queue and splice in the rest from S
         // card
 
-        // for (int i = 0; i < len; i++) {
-        //     // len=4, i= 0  1  2  3.
-        //     //        x=60 61 62 63
-        //     auto oldidx = i + 64 - len;
-        //     s->buf[i] = s->buf[oldidx];
-        // }
+        // memcpy(&s->buf[0], &s->buf[s->bufidx], len);
+        memcpy(&s->buf[0], &s->buf[s->bufidx], len);
 
         // if len=4, we want to skip 0, 1, 2, 3.
         // auto res = pf_read(s->buf + 4, 64, &actual);
@@ -131,7 +141,11 @@ PTRESULT next_codepoint(State *s) {
         serial5("UTF", res.evt, res.pt, res.width, s->buf[s->bufidx]);
     }
     if (res.evt == UTF8_EOI) {
+        serial4("actual and actual-bufidx", actual, actual - s->bufidx,
+                s->bufidx);
         serial1("TODO: Handle EOI.");
+        while (1)
+            ;
     }
     if (res.evt != UTF8_OK) {
         serial("error res", "");
@@ -184,7 +198,11 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
 
     while (y < ROWS_PER_PAGE) {
         // note: next_codepoint already incs bufidx
+
+        // serial1("before next_codept");
         auto r = next_codepoint(s);
+        // serial1("...affer next_codept");
+
         if (r.evt == UTF8_INVALID) {
             // We consume the byte offset, but we ignore the byte
             consumed += r.width;
@@ -223,7 +241,7 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
                     }
                     pid = 0;
                 }
-            } else if (pid >= 16 - 1) {
+            } else if (pid >= 16) {
                 // buf is full so we're going to force-draw the codepoints
                 // break-all style
                 if (x + pid < CHARS_PER_ROW) {
@@ -265,6 +283,7 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
 
 exit:
     serial3("returning from how_ffset x y:", x, y);
+    serial2("pid is: ", pid);
 
     epd_refresh();
     return consumed;
