@@ -120,6 +120,9 @@ PTRESULT next_codepoint(State *s) {
         // auto res = pf_read(s->buf, 64, &actual);
 
         // I want to get this 4byte offset working tho
+        // auto res = pf_read(s->buf + len, 64 - len, &actual);
+        // serial2("-> actual", actual);
+
         auto res = pf_read(s->buf + len, 64 - len, &actual);
 
         if (res != FR_OK) {
@@ -136,7 +139,11 @@ PTRESULT next_codepoint(State *s) {
 
     // auto res = utf8_decode(s->buf, (s->endptr--) - s->buf);
     // TODO: SHould I Lisetn to `actual` here?
-    auto res = utf8_decode(s->buf + s->bufidx, actual - s->bufidx);
+    // Note: Ignoring actual for now cuz it's always 60(?)
+    // Note: Ignoring actual for now cuz it's always 60(?)
+    // auto res = utf8_decode(s->buf + s->bufidx, actual - s->bufidx);
+    auto res = utf8_decode(s->buf + s->bufidx, 64 - s->bufidx);
+
     if (true || res.evt != UTF8_OK) {
         serial5("UTF", res.evt, res.pt, res.width, s->buf[s->bufidx]);
     }
