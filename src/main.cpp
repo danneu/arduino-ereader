@@ -119,7 +119,8 @@ PTRESULT next_codepoint(State *s) {
             s->buf[i] = s->buf[oldidx];
         }
         // if len=4, we want to skip 0, 1, 2, 3.
-        auto res = pf_read(s->buf + 4, 64, &actual);
+        // auto res = pf_read(s->buf + 4, 64, &actual);
+        auto res = pf_read(s->buf + len, 64 - len, &actual);
         if (res != FR_OK) {
             Serial.println("prob");
         }
