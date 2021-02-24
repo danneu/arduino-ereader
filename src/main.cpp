@@ -154,7 +154,7 @@ bool pt_whitespace(uint32_t pt) {
 #define ROWS_PER_PAGE (uint8_t)18  // 300/16
 #define CHARS_PER_ROW (uint8_t)50  // 400/8
 
-void show_offset(State *s, uint32_t offset, uint8_t *frame) {
+uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
     uint32_t pbuf[16];
     uint8_t pid = 0;
     uint8_t y = 0;
@@ -187,10 +187,10 @@ void show_offset(State *s, uint32_t offset, uint8_t *frame) {
             consumed += r.width;
             // We collect the point
 
-            // if (r.pt != '\n') {
-            //     pbuf[pid++] = r.pt;
-            // }
-            pbuf[pid++] = r.pt;
+            if (r.pt != '\n') {
+                pbuf[pid++] = r.pt;
+            }
+            // pbuf[pid++] = r.pt;
 
             // \n is special case
             // TODO: Don't add it to pbuf
@@ -256,7 +256,8 @@ void show_offset(State *s, uint32_t offset, uint8_t *frame) {
 
     serial3("returning from how_ffset x y:", x, y);
 
-    return epd_refresh();
+    epd_refresh();
+    return consumed;
 }
 
 void setup() {
