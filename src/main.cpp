@@ -46,30 +46,24 @@ void setup() {
     res = pf_mount(&fs);
     if (res) {
         Serial.println(F("Failed to mount fs."));
-        while (1)
-            ;
+        abort_with_ferror(res, &textrow);
     }
 
     res = pf_opendir(&dir, "/");
     if (res) {
-        while (1)
-            ;
+        abort_with_ferror(res, &textrow);
     }
 
     // Read directory
     while (1) {
         res = pf_readdir(&dir, &fno);
         if (res != FR_OK) {
-            serial1("Error reading directory.");
-            while (1)
-                ;
+            abort_with_ferror(res, &textrow);
         }
 
         // end of listings
         if (!fno.fname[0]) {
-            Serial.println(F("No ebook found."));
-            while (true)
-                ;
+            abort_with_ferror(res, &textrow);
         }
         Serial.print(fno.fname);
         Serial.print(F("\t"));
@@ -87,8 +81,7 @@ void setup() {
     // Open file
     res = pf_open(fno.fname);
     if (res) {
-        while (1)
-            ;
+        abort_with_ferror(res, &textrow);
     }
 
     // For debugging end of book:

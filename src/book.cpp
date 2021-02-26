@@ -20,6 +20,37 @@ State new_state(FATFS *fs, uint32_t fsize) {
     return state;
 }
 
+const char ferrors[] PROGMEM =
+    "(No Error)   Disk Error   No File      Not Opened   Not Enabled  No "
+    "Filesystem";
+
+// Render FRESULT to screen and wait for user to reset (likely missing SD card).
+void abort_with_ferror(FRESULT res, pixelbuf *frame) {
+    char msg[14];
+    memcpy_P(msg, &ferrors[res * 13], 13);
+    msg[13] = 0;
+    for (uint8_t y = 0; y < ROWS_PER_PAGE; y++) {
+        pixelbuf_clear(frame);
+        if (y == (ROWS_PER_PAGE / 2) - 1) {
+            auto msg = "SD Card Error:";
+            for (uint8_t i = 0; i < 14; i++) {
+                pixelbuf_draw_unicode_glyph(frame, msg[i],
+                                            i + (CHARS_PER_ROW / 2) - (14 / 2));
+            }
+        } else if (y == (ROWS_PER_PAGE / 2)) {
+            for (uint8_t i = 0; i < 14 - 1; i++) {
+                pixelbuf_draw_unicode_glyph(frame, msg[i],
+                                            i + (CHARS_PER_ROW / 2) - (14 / 2));
+            }
+        }
+        epd_set_partial_window(frame->buf, 0, y * CHAR_HEIGHT, WIDTH,
+                               CHAR_HEIGHT);
+    }
+    epd_refresh();
+    while (1)
+        ;
+}
+
 // When bufidx is full, its index is 0
 // Buf empty: idx 64-1
 
@@ -189,10 +220,10 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
             // consumed += r.width;
             // We collect the point
 
-            if (r.pt != '\n') {
-                pbuf[pid++] = r.pt;
-            }
-            // pbuf[pid++] = r.pt;
+            // if (r.pt != '\n') {
+            //     pbuf[pid++] = r.pt;
+            // }
+            pbuf[pid++] = r.pt;
 
             if (s->buflen < 64 && s->bufidx >= s->buflen) {
                 // serial1("next_codepoint: EOB");
@@ -211,6 +242,19 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
             if (r.pt == '\n') {
                 // serial3("next_codepoint: found NL. x, pid:", x, pid);
                 int i = 0;
+
+                // Ignore leading NL on a page
+                // if (pid == 1 && y == 0) {
+                //     y -= 1;
+                //     x = 0;
+                //     pid = 0;
+                //     continue;
+                // }
+
+                if (x + pid >= CHARS_PER_ROW) {
+                    commitframe(y, 0);
+                }
+
                 // Finish out the rest of current line
                 // for (; i < pid && x + i < CHARS_PER_ROW; i++) {
                 for (; i < pid && x < CHARS_PER_ROW; i++) {
@@ -348,7 +392,7 @@ uint32_t next_page(State *s, pixelbuf *frame) {
 
     // Push to history
     if (s->hid >= 16 - 1) {
-        // TODO: Check/fix
+        // TODO: Haven't checked this branch
         for (int i = 0; i < 16 - 1; i++) {
             s->history[i] = s->history[i + 1];
         }

@@ -47,6 +47,7 @@ PTRESULT next_codepoint(State *s);
 // uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame);
 uint32_t next_page(State *s, pixelbuf *frame);
 void prev_page(State *s, pixelbuf *frame);
+void abort_with_ferror(FRESULT res, pixelbuf *frame);
 
 #ifdef __cplusplus
 }
