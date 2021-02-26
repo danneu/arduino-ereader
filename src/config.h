@@ -4,6 +4,8 @@
 #define GLYPHS_ON 1
 
 #define LEFT_MARGIN (1 * CHAR_WIDTH)
+#define EPD_WIDTH 400
+#define EPD_HEIGHT 300
 #define WIDTH 400
 #define HEIGHT 300
 #define CHAR_WIDTH 8

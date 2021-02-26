@@ -7,12 +7,6 @@
 #include "config.h"
 #include "spi.h"
 
-#define CS_LOW() PORTB &= ~(1 << DDB2)
-#define CS_HIGH() PORTB |= (1 << DDB2)
-
-#define EPD_WIDTH 400
-#define EPD_HEIGHT 300
-
 // COMMANDS
 
 #define PANEL_SETTING 0x00
@@ -53,21 +47,6 @@
 #define ACTIVE_PROGRAMMING 0xA1
 #define READ_OTP 0xA2
 #define POWER_SAVING 0xE3
-
-// E-ink display behavior can be changed with waveform lookup tables (LUTs)
-// that tell the display how to handle transition between different pixel
-// states.
-//
-// The Waveshare/Ingcool/GoodDisplay e-ink display (I think they are all
-// identical) have two write-only pixel buffers in their own microcontroller
-// that you can write to with the DATA_START_TRANSMISSION_{1,2} commands. Every
-// time you send the the DISPLAY_REFRESH command to update the screen, the
-// display updates new pixels with a function of fn(LUT, OLDBUFFER, NEWBUFFER).
-// Once done, it copies the NEWBUFFER to be the new OLDBUFFER and you begin
-// working on your next frame.
-//
-// I've copied some LUTs here that I've found in the wild or in various
-// reference code that is good in some scenarios.
 
 // LUT0 is for full refresh
 static const uint8_t vcom0[] PROGMEM = {
@@ -171,7 +150,7 @@ void epd_data(uint8_t data) {
 // Paints frame from SRAM to display
 void epd_refresh() {
     epd_cmd(DISPLAY_REFRESH);
-    _delay_ms(200);
+    _delay_ms(100);
     wait_until_idle();
 }
 
@@ -225,7 +204,7 @@ void epd_init() {
     epd_data(0x00);
     epd_data(0x2b);  // VDH
     epd_data(0x2b);  // VDL
-    // epd_data(0xff);  // VDHR
+    epd_data(0xff);  // VDHR
 
     epd_cmd(BOOSTER_SOFT_START);
     epd_data(0x17);
