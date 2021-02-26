@@ -277,11 +277,12 @@ void epd_set_partial_window(const uint8_t* buf, int x, int y, int w, int h) {
 // use epd_reset() to wake up.
 void epd_deep_sleep() {
     epd_cmd(VCOM_AND_DATA_INTERVAL_SETTING);
+    epd_data(0x17);           // border floating
     epd_cmd(VCM_DC_SETTING);  // VCOM to 0V
     epd_cmd(PANEL_SETTING);
     _delay_ms(100);
 
-    // VG&VS to 0V faster
+    // VG&VS to 0V fast
     epd_cmd(POWER_SETTING);
     for (uint8_t i = 0; i < 5; i++) {
         epd_data(0x00);
