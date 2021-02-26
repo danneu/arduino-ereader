@@ -137,8 +137,6 @@ static const uint8_t bb1[] PROGMEM = {
 // Resets the display hardware.
 // This is the intended way to awake from deep sleep.
 void epd_reset() {
-    digitalWrite(EPD_RESET_PIN, HIGH);
-    _delay_ms(10);
     digitalWrite(EPD_RESET_PIN, LOW);
     _delay_ms(10);
     digitalWrite(EPD_RESET_PIN, HIGH);
@@ -225,8 +223,9 @@ void epd_init() {
     epd_cmd(POWER_SETTING);
     epd_data(0x03);
     epd_data(0x00);
-    epd_data(0x2b);
-    epd_data(0x2b);
+    epd_data(0x2b);  // VDH
+    epd_data(0x2b);  // VDL
+    // epd_data(0xff);  // VDHR
 
     epd_cmd(BOOSTER_SOFT_START);
     epd_data(0x17);
@@ -239,12 +238,17 @@ void epd_init() {
     epd_cmd(PANEL_SETTING);
     epd_data(0xbf);
     epd_data(0x0d);
+    // epd_data(0x3f);
 
     // Set display clock speed.
-    // 0x3a: 100Mhz, 0x29: 150Mhz, 0x39  200Mhz (default 50Mhz)
-    // I couldn't get 200Mhz (max) to refresh the screen.
+    // - 0x3c: 50MHz (default)
+    // - 0x3a: 100MHz
+    // - 0x29: 150MHz
+    // - 0x31: 171MHz
+    // - 0x39: 200MHz <-- Doesn't seem to work
     epd_cmd(PLL_CONTROL);
-    epd_data(0x29);
+    // epd_data(0x29);
+    epd_data(0x31);
 
     epd_cmd(RESOLUTION_SETTING);
     epd_data(EPD_WIDTH >> 8);
@@ -290,4 +294,23 @@ void epd_set_partial_window(const uint8_t* buf, int x, int y, int w, int h) {
     }
     _delay_ms(2);
     epd_cmd(PARTIAL_OUT);
+}
+
+// use epd_reset() to wake up.
+void epd_deep_sleep() {
+    epd_cmd(VCOM_AND_DATA_INTERVAL_SETTING);
+    epd_cmd(VCM_DC_SETTING);  // VCOM to 0V
+    epd_cmd(PANEL_SETTING);
+    _delay_ms(100);
+
+    // VG&VS to 0V faster
+    epd_cmd(POWER_SETTING);
+    for (uint8_t i = 0; i < 5; i++) {
+        epd_data(0x00);
+    }
+
+    epd_cmd(POWER_OFF);
+    wait_until_idle();
+    epd_cmd(DEEP_SLEEP);
+    epd_data(0xa5);
 }

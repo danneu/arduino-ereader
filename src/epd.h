@@ -14,6 +14,7 @@ void epd_clear();
 void epd_refresh();
 void epd_set_lut(EPD_LUT lut);
 void epd_set_partial_window(const uint8_t* buf, int x, int y, int w, int h);
+void epd_deep_sleep();
 
 #ifdef __cplusplus
 }
