@@ -413,6 +413,12 @@ bail:
     // Reset bufidx
     s->bufidx = SD_BUFSIZE;
 
+    pixelbuf_clear(frame);
+    pixelbuf_draw_progress(frame, (double)start_fptr / s->fsize);
+    epd_set_partial_window(frame->buf, 0, (ROWS_PER_PAGE)*CHAR_HEIGHT, WIDTH,
+                           CHAR_HEIGHT);
+
+    // epd_set_lut(LUT_FULL);
     epd_refresh();
 
     return offset1;

@@ -83,6 +83,8 @@ void setup() {
     // auto diff = show_offset(&state, 0, &textrow);
     // fs.fptr = diff;
     next_page(&state, &textrow);
+    epd_slow_clockspeed();
+    epd_set_lut(LUT_PARTIAL);
 }
 
 void loop() {

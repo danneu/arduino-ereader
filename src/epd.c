@@ -247,8 +247,7 @@ void epd_init() {
     // - 0x31: 171MHz
     // - 0x39: 200MHz <-- Doesn't seem to work
     epd_cmd(PLL_CONTROL);
-    // epd_data(0x29);
-    epd_data(0x31);
+    epd_data(0x31);  // 171
 
     epd_cmd(RESOLUTION_SETTING);
     epd_data(EPD_WIDTH >> 8);
@@ -313,4 +312,14 @@ void epd_deep_sleep() {
     wait_until_idle();
     epd_cmd(DEEP_SLEEP);
     epd_data(0xa5);
+}
+
+void epd_slow_clockspeed() {
+    epd_cmd(PLL_CONTROL);
+    epd_data(0x3c);  // 50
+}
+
+void epd_fast_clockspeed() {
+    epd_cmd(PLL_CONTROL);
+    epd_data(0x31);  // 171
 }

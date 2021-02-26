@@ -20,6 +20,8 @@ typedef struct pixelbuf {
 pixelbuf pixelbuf_new();
 void pixelbuf_clear(pixelbuf *p);
 void pixelbuf_draw_unicode_glyph(pixelbuf *p, uint32_t pt, uint8_t idx);
+void pixelbuf_draw_horiz(pixelbuf *p, uint8_t y);
+void pixelbuf_draw_progress(pixelbuf *p, double ratio);
 
 #ifdef __cplusplus
 }
