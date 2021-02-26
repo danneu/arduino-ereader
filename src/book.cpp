@@ -271,7 +271,7 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
                 if (x + pid < CHARS_PER_ROW) {
                     serial1("x + pid < CHARSPERROW");
                     // all 16 fit on current line
-                    for (int i = 0; i < pid; i++) {
+                    for (uint8_t i = 0; i < pid; i++) {
                         pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
                     }
                     pid = 0;  // reset the stck
@@ -322,51 +322,22 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
 
 bail:
 
-    // Unused decoded points
-    // for (uint8_t i = 0; i < pid; i++) {
-    //     rewind += utf8_encoded_bytesize(pbuf[i]);
-    // }
-    // Unused read buffer
     int bytesize = 0;
     for (int i = pidoffset; i < pid; i++) {
         bytesize += utf8_encoded_bytesize(pbuf[i]);
     }
     auto actual_consumed = s->fs->fptr - start_fptr;
-    auto offset1 = actual_consumed - bytesize - (s->buflen - s->bufidx);
-    auto offset2 = consumed - bytesize - (s->buflen - s->bufidx);
-    // serial2(":: bytesize of leftover pid:", bytesize);
-    // serial2(":: actual consumed:", actual_consumed);
-    // serial4(":: consumed:", consumed, "-> offset2", offset2);
-    // serial4(":: fptr:", s->fs->fptr, "-> offset1", offset1);
-
-    // serial6("=== Rewinding fptr ", bytesize, "bytes from", s->fs->fptr, "to",
-    // s->fs->fptr - bytesize - (s->buflen - s->bufidx)); pf_lseek(s->fs->fptr -
-    // bytesize - (s->buflen - s->bufidx));
-
-    // pf_lseek(s->fs->fptr - rewind);
-
-    // serial4("consumed", consumed, " vs rewind ", rewind);
+    auto offset1 = actual_consumed
+                   // Unused decoded points
+                   - bytesize
+                   // Unused read buffer
+                   - (s->buflen - s->bufidx);
 
     // Reset bufidx
     s->bufidx = 64;
 
-    // if (pid > 0) {
-    //     uint8_t bytesize = 0;
-    //     // TODO: Return leftover from the fn, this is lame.
-    //     // rewind so that next page picks up the leftovers.
-    //     rewind += bytesize;
-    // }
-
-    // serial3("returning from how_ffset x y:", x, y);
-    // serial2("pid is: ", pid);
-
     epd_refresh();
 
-    // reset bufidx so that next pagination loads from loffset.
-
-    // return consumed - rewind;
-    // return s->fs->fptr - bytesize - (s->buflen - s->bufidx);
-    // return offset2;
     return offset1;
 }
 
