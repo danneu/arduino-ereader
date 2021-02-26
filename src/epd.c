@@ -223,9 +223,11 @@ void epd_init() {
     epd_data(0xbf);
     epd_data(0x0d);
 
-    // I couldn't get 200Mhz (max) to refresh the screen,
+    // Set display clock speed.
+    // 0x3a: 100Mhz, 0x29: 150Mhz, 0x39  200Mhz (default 50Mhz)
+    // I couldn't get 200Mhz (max) to refresh the screen.
     epd_cmd(PLL_CONTROL);
-    epd_data(0x29);  // 0x3a: 100Mhz, 0x29: 150Mhz, 0x39  200Mhz (default 50Mhz)
+    epd_data(0x29);
 
     epd_cmd(RESOLUTION_SETTING);
     epd_data(EPD_WIDTH >> 8);
@@ -239,7 +241,6 @@ void epd_init() {
     epd_cmd(VCOM_AND_DATA_INTERVAL_SETTING);
     epd_data(0x97);
 
-    // setLUT(CannedLUT::FullRefresh);
     epd_set_lut(LUT_FULL);
 }
 

@@ -30,7 +30,7 @@ void textrow_draw_unicode_point(uint8_t *textrow, uint32_t pt, uint8_t idx) {
     auto notfound = get_glyph(pt, glyph);
     if (notfound) {
         // silly fallback
-        serial("glyph not foun for ", pt);
+        serial("glyph not found for ", pt);
         get_glyph('_', glyph);
     }
     for (uint8_t y = 0; y < CHAR_HEIGHT; y++) {
@@ -61,7 +61,7 @@ State new_state(FATFS fs, uint32_t fsize) {
 }
 
 typedef struct PTRESULT {
-    UTF8_STATUS evt;
+    UTF8Status evt;
     bool eob;
     uint32_t pt;
     uint8_t width;
@@ -326,7 +326,6 @@ uint16_t show_offset(State *s, uint32_t offset, uint8_t *frame) {
         }
     }
 
-exit:
     serial3("returning from how_ffset x y:", x, y);
     serial2("pid is: ", pid);
 
@@ -402,6 +401,7 @@ void setup() {
     auto loc = 0;
     while (1) {
         show_offset(&state, fs.fptr, textrow);
+        _delay_ms(1000);
     }
     // while (1) {
     //     show_offset(&state, loc, textrow);

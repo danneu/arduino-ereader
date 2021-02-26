@@ -12,35 +12,25 @@
             ;                    \
     } while (0)
 
-// #define max(a, b)               \
-//     ({                          \
-//         __typeof__(a) _a = (a); \
-//         __typeof__(b) _b = (b); \
-//         _a > _b ? _a : _b;      \
-//     })
-// #define min(a, b)               \
-//     ({                          \
-//         __typeof__(a) _a = (a); \
-//         __typeof__(b) _b = (b); \
-//         _a < _b ? _a : _b;      \
-//     })
-
 #define serial1(a)         \
     do {                   \
         Serial.println(a); \
     } while (0)
+
 #define serial(a, b)       \
     do {                   \
         Serial.print(a);   \
         Serial.print(" "); \
         Serial.println(b); \
     } while (0)
+
 #define serial2(a, b)      \
     do {                   \
         Serial.print(a);   \
         Serial.print(" "); \
         Serial.println(b); \
     } while (0)
+
 #define serial3(a, b, c)   \
     do {                   \
         Serial.print(a);   \
@@ -49,6 +39,7 @@
         Serial.print(" "); \
         Serial.println(c); \
     } while (0)
+
 #define serial4(a, b, c, d) \
     do {                    \
         Serial.print(a);    \
@@ -59,6 +50,7 @@
         Serial.print(" ");  \
         Serial.println(d);  \
     } while (0)
+
 #define serial5(a, b, c, d, e) \
     do {                       \
         Serial.print(a);       \
@@ -71,6 +63,7 @@
         Serial.print(" ");     \
         Serial.println(e);     \
     } while (0)
+
 #define serial6(a, b, c, d, e, f) \
     do {                          \
         Serial.print(a);          \

@@ -46,4 +46,11 @@ The easy solution for graphics is to map pixels to memory with a buffer sized `{
 
 Instead I buffer one line of glyphs at a time and walk it down the screen until all rows of text have been submitted to the e-ink buffer with the partial-window-update command. I could get this down to buffering just one glyph at a time if I need to.
 
+### Pagination
+
+UTF-8 is a multi-byte encoding meaning that a glyph may be represented with one to multiple bytes.
+That means you don't know how many bytes you'll need to read to draw the next page and you end up with an incremental solution where you fetch some bytes from the SD card and decode glyphs from it until you fill up your line/page.
+
+
+
 ## Thoughts
