@@ -54,6 +54,21 @@
 #define READ_OTP 0xA2
 #define POWER_SAVING 0xE3
 
+// E-ink display behavior can be changed with waveform lookup tables (LUTs)
+// that tell the display how to handle transition between different pixel
+// states.
+//
+// The Waveshare/Ingcool/GoodDisplay e-ink display (I think they are all
+// identical) have two write-only pixel buffers in their own microcontroller
+// that you can write to with the DATA_START_TRANSMISSION_{1,2} commands. Every
+// time you send the the DISPLAY_REFRESH command to update the screen, the
+// display updates new pixels with a function of fn(LUT, OLDBUFFER, NEWBUFFER).
+// Once done, it copies the NEWBUFFER to be the new OLDBUFFER and you begin
+// working on your next frame.
+//
+// I've copied some LUTs here that I've found in the wild or in various
+// reference code that is good in some scenarios.
+
 // LUT0 is for full refresh
 static const uint8_t vcom0[] PROGMEM = {
     0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x17, 0x00, 0x00,
