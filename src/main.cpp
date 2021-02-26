@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <avr/pgmspace.h>
 
 #include "book.h"
 #include "config.h"
@@ -26,13 +27,13 @@ unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 
 void setup() {
     Serial.begin(9600);
+    Serial.println(F("Starting..."));
     spi_begin();
 
     // SD card chip select
     pinMode(SD_CS_PIN, OUTPUT);
 
     // Set up button
-    Serial.println(F("Starting..."));
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
     epd_init();
@@ -43,7 +44,6 @@ void setup() {
 
     res = pf_mount(&fs);
     if (res) {
-        Serial.println(F("Failed to mount fs."));
         abort_with_ferror(res, &textrow);
     }
 
@@ -55,20 +55,16 @@ void setup() {
     // Read directory
     while (1) {
         res = pf_readdir(&dir, &fno);
-        if (res != FR_OK) {
-            abort_with_ferror(res, &textrow);
-        }
-
+        if (res) abort_with_ferror(res, &textrow);
         // end of listings
-        if (!fno.fname[0]) {
-            abort_with_ferror(res, &textrow);
-        }
+        if (!fno.fname[0]) abort_with_error(F("No ebooks found."), &textrow);
+
         Serial.print(fno.fname);
         Serial.print(F("\t"));
         Serial.print(fno.fext);
         Serial.print(F("\t"));
         Serial.println(fno.fsize);
-        if (!strcmp(fno.fext, "TXT") &&
+        if (!strcmp(fno.fext, "TXT") && !(fno.fattrib & AM_DIR) &&
             !strcmp(fno.fname, "ARRANC~2.TXT")) {  // && fno.fsize > 100) {
             // !strcmp(fno.fname, "LABIOS.TXT")) {  // && fno.fsize > 100) {
             // !strcmp(fno.fname, "TEST.TXT")) {
@@ -78,9 +74,7 @@ void setup() {
 
     // Open file
     res = pf_open(fno.fname);
-    if (res) {
-        abort_with_ferror(res, &textrow);
-    }
+    if (res) abort_with_ferror(res, &textrow);
 
     // For debugging end of book:
     // pf_lseek(428840);

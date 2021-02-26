@@ -4,16 +4,13 @@
 #ifndef book_h
 #define book_h
 
+#include <Arduino.h>
 #include <diskio.h>
 #include <pff.h>
 #include <stdint.h>
 
 #include "pixelbuf.h"
 #include "utf8.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 // Result of trying to get the next unicode codepoint from our byte offset
 // location in the book in the book.
@@ -48,9 +45,7 @@ PTRESULT next_codepoint(State *s);
 uint32_t next_page(State *s, pixelbuf *frame);
 void prev_page(State *s, pixelbuf *frame);
 void abort_with_ferror(FRESULT res, pixelbuf *frame);
-
-#ifdef __cplusplus
-}
-#endif
+void abort_with_error(const char *line, pixelbuf *frame);
+void abort_with_error(const __FlashStringHelper *line, pixelbuf *frame);
 
 #endif

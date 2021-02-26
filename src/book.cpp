@@ -20,6 +20,46 @@ State new_state(FATFS *fs, uint32_t fsize) {
     return state;
 }
 
+void _abort_helper(char (*funct)(const char *), const char *string,
+                   pixelbuf *frame) {
+    char buf[CHARS_PER_ROW];
+    uint8_t cursor = 0;
+
+    while ((buf[cursor] = funct(string++))) {
+        ++cursor;
+    }
+    for (uint8_t y = 0; y < ROWS_PER_PAGE; y++) {
+        pixelbuf_clear(frame);
+        if (y == ROWS_PER_PAGE / 2 - 1) {
+            uint8_t msg[6];
+            memcpy_P(msg, PSTR("Error:"), sizeof(msg));
+            for (uint8_t i = 0; i < sizeof(msg); i++) {
+                pixelbuf_draw_unicode_glyph(
+                    frame, msg[i], i + (CHARS_PER_ROW / 2) - (sizeof(msg) / 2));
+            }
+        } else if (y == ROWS_PER_PAGE / 2) {
+            for (uint8_t i = 0; i < cursor; i++) {
+                pixelbuf_draw_unicode_glyph(
+                    frame, buf[i], i + (CHARS_PER_ROW / 2) - (cursor / 2));
+            }
+        }
+        epd_set_partial_window(frame->buf, 0, y * CHAR_HEIGHT, WIDTH,
+                               CHAR_HEIGHT);
+    }
+    epd_refresh();
+    while (1)
+        ;
+}
+
+void abort_with_error(const char *line, pixelbuf *frame) {
+    _abort_helper([](const char *ptr) { return *ptr; }, line, frame);
+}
+
+void abort_with_error(const __FlashStringHelper *line, pixelbuf *frame) {
+    _abort_helper([](const char *ptr) { return (char)pgm_read_byte(ptr); },
+                  (const char *)line, frame);
+}
+
 const char ferrors[] PROGMEM =
     "(No Error)   Disk Error   No File      Not Opened   Not Enabled  No "
     "Filesystem";
