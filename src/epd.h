@@ -10,6 +10,7 @@ extern "C" {
 typedef enum EPD_LUT { LUT_FULL, LUT_PARTIAL } EPD_LUT;
 
 void epd_init();
+void epd_reset();
 void epd_clear();
 void epd_refresh();
 void epd_set_lut(EPD_LUT lut);

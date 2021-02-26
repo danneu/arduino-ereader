@@ -116,6 +116,8 @@ static const uint8_t bb1[] PROGMEM = {
 // Resets the display hardware.
 // This is the intended way to awake from deep sleep.
 void epd_reset() {
+    digitalWrite(EPD_RESET_PIN, HIGH);
+    _delay_ms(10);
     digitalWrite(EPD_RESET_PIN, LOW);
     _delay_ms(10);
     digitalWrite(EPD_RESET_PIN, HIGH);

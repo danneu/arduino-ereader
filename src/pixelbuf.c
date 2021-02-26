@@ -22,6 +22,7 @@ void pixelbuf_draw_horiz(pixelbuf *p, uint8_t y) {
 
 // ratio is 0.0 to 1.0
 void pixelbuf_draw_progress(pixelbuf *p, double ratio) {
+    ratio = min(max(ratio, 0.0), 1.0);  // clamp to 0..1
     double limit = ratio * WIDTH / 8;
     uint8_t y = 11;
 
