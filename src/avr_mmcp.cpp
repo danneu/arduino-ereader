@@ -3,8 +3,8 @@
 /*-------------------------------------------------------------------------*/
 
 #include <Arduino.h>
+#include <diskio.h>
 
-#include "pff3a/source/diskio.h"
 #include "spi.h"
 
 /*-------------------------------------------------------------------------*/
@@ -21,7 +21,7 @@
 
 #define xmit(char) Serial.write(char)
 #define dly_100us() _delay_us(100)  // delayMicroseconds(100)
-#define init_spi() 0
+#define init_spi() (void)0
 #define xmit_spi(byte) spi_xfer(byte)
 #define rcv_spi() spi_recv()
 

@@ -4,10 +4,10 @@
 #ifndef book_h
 #define book_h
 
+#include <diskio.h>
+#include <pff.h>
 #include <stdint.h>
 
-#include "pff3a/source/diskio.h"
-#include "pff3a/source/pff.h"
 #include "pixelbuf.h"
 #include "utf8.h"
 

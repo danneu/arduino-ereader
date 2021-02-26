@@ -1,11 +1,9 @@
 #include <Arduino.h>
 
+#include "book.h"
 #include "config.h"
 #include "epd.h"
 #include "glyphs.h"
-// #include "pff3a/source/diskio.h"
-#include "book.h"
-#include "pff3a/source/pff.h"
 #include "pixelbuf.h"
 #include "spi.h"
 #include "utf8.h"
