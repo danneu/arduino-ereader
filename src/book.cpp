@@ -384,12 +384,12 @@ uint32_t next_page(State *s, pixelbuf *frame) {
     pf_lseek(start + diff);
 
     // Push to history
-    if (s->hid >= 16 - 1) {
+    if (s->hid >= PAGE_HISTORY_LEN - 1) {
         // TODO: Haven't checked this branch
-        for (int i = 0; i < 16 - 1; i++) {
+        for (int i = 0; i < PAGE_HISTORY_LEN - 1; i++) {
             s->history[i] = s->history[i + 1];
         }
-        s->history[16 - 1] = start;
+        s->history[PAGE_HISTORY_LEN - 1] = start;
     } else {
         s->history[++s->hid] = start;
     }

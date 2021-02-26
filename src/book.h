@@ -32,13 +32,13 @@ typedef struct State {
     FATFS *fs;
     // char fname[];
     uint32_t fsize;
-    // TODO: CLear buffer when skipping aroun book.
+
     uint8_t buf[64];
     uint8_t bufidx;
     UINT buflen;
 
     // Page offset history
-    uint32_t history[16];
+    uint32_t history[PAGE_HISTORY_LEN];
     int8_t hid;
 } Struct;
 
