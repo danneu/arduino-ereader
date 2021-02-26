@@ -13,7 +13,7 @@ State new_state(FATFS *fs, uint32_t fsize) {
     State state = State{.fs = fs,
                         .fsize = fsize,
                         .buf = {0x00},
-                        .bufidx = 64,
+                        .bufidx = SD_BUFSIZE,
                         .buflen = 0,
                         .history = {0x00},
                         .hid = -1};
@@ -78,9 +78,9 @@ PTRESULT next_codepoint(State *s) {
     // 60     4    60>=60    true
     // 59     x    59>60    false
     // serial2("next_codepoint: bufidx is", s->bufidx);
-    if (64 - s->bufidx <= 4) {
+    if (SD_BUFSIZE - s->bufidx <= 4) {
         // if (s->endptr - s->buf > 4) {
-        int len = 64 - s->bufidx;
+        int len = SD_BUFSIZE - s->bufidx;
         // serial2(":: BUF almost empty. len =", len);
         // serial3("len", s->bufidx, len);
         // move the bits to front of queue and splice in the rest from S
@@ -102,7 +102,7 @@ PTRESULT next_codepoint(State *s) {
         // auto res = pf_read(s->buf + len, 64 - len, &actual);
         // serial2("-> actual", actual);
 
-        auto res = pf_read(s->buf + len, 64 - len, &s->buflen);
+        auto res = pf_read(s->buf + len, SD_BUFSIZE - len, &s->buflen);
         // add back the bytes at the front (memcpy step above)
         s->buflen += len;
 
@@ -148,7 +148,7 @@ PTRESULT next_codepoint(State *s) {
         // s->bufidx += 1;
     }
     s->bufidx += res.width;
-    if (s->bufidx > 64) {
+    if (s->bufidx > SD_BUFSIZE) {
         while (1)
             ;
     }
@@ -221,7 +221,7 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
             // }
             pbuf[pid++] = r.pt;
 
-            if (s->buflen < 64 && s->bufidx >= s->buflen) {
+            if (s->buflen < SD_BUFSIZE && s->bufidx >= s->buflen) {
                 // serial1("next_codepoint: EOB");
                 // TODO: Do I need to also wrap and do that handlig??
                 serial2(F("EOB... pid is"), pid);
@@ -371,7 +371,7 @@ bail:
                    - (s->buflen - s->bufidx);
 
     // Reset bufidx
-    s->bufidx = 64;
+    s->bufidx = SD_BUFSIZE;
 
     epd_refresh();
 

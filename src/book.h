@@ -33,7 +33,7 @@ typedef struct State {
     // char fname[];
     uint32_t fsize;
 
-    uint8_t buf[64];
+    uint8_t buf[SD_BUFSIZE];
     uint8_t bufidx;
     UINT buflen;
 

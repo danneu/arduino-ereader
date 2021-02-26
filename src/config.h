@@ -11,6 +11,8 @@
 #define TEXTROW_BUFSIZE (CHAR_HEIGHT * WIDTH / CHAR_WIDTH)
 // How many pages (offsets) to remember
 #define PAGE_HISTORY_LEN 8
+// How many bytes to buffer from SD card
+#define SD_BUFSIZE 64
 
 #define CHAR_HEIGHT 16
 #define CHAR_WIDTH 8
