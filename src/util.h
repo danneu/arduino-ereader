@@ -4,12 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ABORT(msg)               \
-    do {                         \
-        Serial.print("ABORT: "); \
-        Serial.println(msg);     \
-        while (1)                \
-            ;                    \
+#define ABORT(msg)                  \
+    do {                            \
+        Serial.print(F("ABORT: ")); \
+        Serial.println(msg);        \
+        while (1)                   \
+            ;                       \
     } while (0)
 
 #define serial1(a)         \

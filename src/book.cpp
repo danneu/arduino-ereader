@@ -32,10 +32,13 @@ void abort_with_ferror(FRESULT res, pixelbuf *frame) {
     for (uint8_t y = 0; y < ROWS_PER_PAGE; y++) {
         pixelbuf_clear(frame);
         if (y == (ROWS_PER_PAGE / 2) - 1) {
-            auto msg = "SD Card Error:";
-            for (uint8_t i = 0; i < 14; i++) {
-                pixelbuf_draw_unicode_glyph(frame, msg[i],
-                                            i + (CHARS_PER_ROW / 2) - (14 / 2));
+            char msg[15];
+            strcpy_P(msg, PSTR("SD Card Error:"));
+            // auto msg = F("SD Card Error:");
+            for (uint8_t i = 0; i < sizeof(msg) - 1; i++) {
+                pixelbuf_draw_unicode_glyph(
+                    frame, msg[i],
+                    i + (CHARS_PER_ROW / 2) - ((sizeof(msg) - 1) / 2));
             }
         } else if (y == (ROWS_PER_PAGE / 2)) {
             for (uint8_t i = 0; i < 14 - 1; i++) {
@@ -105,7 +108,7 @@ PTRESULT next_codepoint(State *s) {
 
         if (res != FR_OK) {
             // TODO
-            Serial.println("prob");
+            Serial.println(F("TODO: Handle utf-8 issue."));
         }
         // if (actual < 64) {
         //     // end of book signalled
@@ -130,16 +133,13 @@ PTRESULT next_codepoint(State *s) {
     p.width = res.width;
 
     if (res.evt != UTF8_OK) {
-        serial5("UTF", res.evt, res.pt, res.width, s->buf[s->bufidx]);
+        serial5(F("UTF"), res.evt, res.pt, res.width, s->buf[s->bufidx]);
     }
     if (res.evt == UTF8_EOI) {
         // serial4("actual and actual-bufidx", actual, actual - s->bufidx,
         // s->bufidx);
         // serial1("TODO: Handle EOI.");
         return p;
-    }
-    if (res.evt != UTF8_OK) {
-        serial("error res", "");
     }
 
     if (res.evt == UTF8_OK || res.evt == UTF8_INVALID) {
@@ -149,7 +149,6 @@ PTRESULT next_codepoint(State *s) {
     }
     s->bufidx += res.width;
     if (s->bufidx > 64) {
-        serial1("wffffffffff");
         while (1)
             ;
     }
@@ -164,7 +163,7 @@ bool pt_whitespace(uint32_t pt) {
 ////////////////////////////////////////////////////////////
 
 uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
-    serial2("lseeking to:", offset);
+    serial2(F("lseeking to:"), offset);
     pf_lseek(offset);
     uint32_t start_fptr = s->fs->fptr;  // do this afer the lseek
 
@@ -172,10 +171,11 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
     uint8_t pid = 0;
     uint8_t y = 0;
     uint16_t x = 0;
-    bool eob = false;
+    // bool eob = false;
     // uint16_t x = 0;
-    uint16_t consumed = 0;
     pixelbuf_clear(frame);
+    // Gives us idx of the last pid we rendered so we can calculate
+    // a rewind at the end.
     uint8_t pidoffset = 0;
 
 // aka breakline()
@@ -203,8 +203,6 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
 
         // serial1("before next_codept");
         auto r = next_codepoint(s);
-        consumed += r.width;
-        // consumed += r.width;
         // if (r.eob) {
         //     eob = true;
         // }
@@ -212,12 +210,10 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
 
         if (r.evt == UTF8_INVALID) {
             // We consume the byte offset, but we ignore the byte
-            // consumed += r.width;
         } else if (r.evt == UTF8_EOI) {
             // `next_codepoint` should be handling this for us.
-            serial1("Unexpected UTF8_EOI in show_offset.");
+            serial1(F("Unexpected UTF8_EOI in show_offset."));
         } else if (r.evt == UTF8_OK) {
-            // consumed += r.width;
             // We collect the point
 
             // if (r.pt != '\n') {
@@ -228,7 +224,7 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
             if (s->buflen < 64 && s->bufidx >= s->buflen) {
                 // serial1("next_codepoint: EOB");
                 // TODO: Do I need to also wrap and do that handlig??
-                serial2("EOB... pid is", pid);
+                serial2(F("EOB... pid is"), pid);
                 // TODO: Hadle newlines/line dont fit
                 for (int i = 0; i < pid; i++) {
                     pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
@@ -309,11 +305,9 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
                     pid = 0;
                 }
             } else if (pid >= 16) {
-                serial1("pid >= 16");
                 // buf is full so we're going to force-draw the codepoints
                 // break-all style
                 if (x + pid < CHARS_PER_ROW) {
-                    serial1("x + pid < CHARSPERROW");
                     // all 16 fit on current line
                     for (uint8_t i = 0; i < pid; i++) {
                         pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
@@ -333,14 +327,13 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
                     // pid = 0;
 
                     ///////
-                    serial1("case33");
                     // not all 16 fit on curr line.
                     // TODO: Handle y-axis overflow or x-acis overflow/?
                     uint16_t currRow = min(pid, (uint16_t)CHARS_PER_ROW - x);
                     uint16_t nextRow = max(0, pid - currRow);
-                    serial3("currRow vs nextRow:", currRow, nextRow);
+                    // serial3("currRow vs nextRow:", currRow, nextRow);
                     if (currRow + nextRow != 16) {
-                        serial1("check math lol");
+                        serial1(F("check math lol"));
                     }
                     // Handle current row
                     uint8_t i;
@@ -396,7 +389,7 @@ uint32_t next_page(State *s, pixelbuf *frame) {
         for (int i = 0; i < 16 - 1; i++) {
             s->history[i] = s->history[i + 1];
         }
-        s->history[15] = start;
+        s->history[16 - 1] = start;
     } else {
         s->history[++s->hid] = start;
     }

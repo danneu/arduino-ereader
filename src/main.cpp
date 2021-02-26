@@ -11,8 +11,12 @@
 #include "utf8.h"
 #include "util.h"
 
-pixelbuf textrow = pixelbuf_new();
 FATFS fs;
+FRESULT res;
+DIR dir;
+FILINFO fno;
+
+pixelbuf textrow = pixelbuf_new();
 State state;
 uint32_t offset = 0;
 
@@ -23,10 +27,6 @@ unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 // the debounce time; increase if the output flickers
 
 void setup() {
-    FRESULT res;
-    DIR dir;
-    FILINFO fno;
-
     Serial.begin(9600);
     spi_begin();
 
@@ -34,7 +34,7 @@ void setup() {
     pinMode(SD_CS_PIN, OUTPUT);
 
     // Set up button
-    Serial.println("Starting...");
+    Serial.println(F("Starting..."));
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
     epd_init();

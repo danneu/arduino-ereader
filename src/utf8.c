@@ -55,17 +55,6 @@ UTF8Result utf8_decode(uint8_t *s, uint16_t inputlen) {
     return d;
 }
 
-// def utf8_char_len_1(c):
-//     codepoint = ord(c)
-//     if codepoint <= 0x7f:
-//         return 1
-//     if codepoint <= 0x7ff:
-//         return 2
-//     if codepoint <= 0xffff:
-//         return 3
-//     if codepoint <= 0x10ffff:
-//         return 4
-//     raise ValueError('Invalid Unicode character: ' + hex(codepoint))
 uint8_t utf8_encoded_bytesize(uint32_t pt) {
     if (pt <= 0x7f) return 1;
     if (pt <= 0x7ff) return 2;

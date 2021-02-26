@@ -1,10 +1,7 @@
 
 #include "pixelbuf.h"
 
-pixelbuf pixelbuf_new() {
-    uint8_t buf[TEXTROW_BUFSIZE] = {0xff};
-    return (pixelbuf){buf};
-}
+pixelbuf pixelbuf_new() { return (pixelbuf){{0xff}}; }
 
 void pixelbuf_clear(pixelbuf *p) {
     for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
