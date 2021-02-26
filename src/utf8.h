@@ -27,6 +27,7 @@ typedef struct UTF8Result {
 } UTF8Result;
 
 UTF8Result utf8_decode(uint8_t *s, uint16_t inputlen);
+uint8_t utf8_encoded_bytesize(uint32_t pt);
 
 #ifdef __cplusplus
 }

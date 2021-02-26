@@ -29,20 +29,20 @@ typedef struct PTRESULT {
 } PTRESULT;
 
 typedef struct State {
-    FATFS fs;
+    FATFS *fs;
     // char fname[];
     uint32_t fsize;
     // TODO: CLear buffer when skipping aroun book.
     uint8_t buf[64];
     uint8_t bufidx;
-    // TODO: uint8_t buflen;
+    UINT buflen;
     // uint8_t *endptr;
     //
     // uint32_t pbuf[16];
     // uint8_t pidx;
 } Struct;
 
-State new_state(FATFS fs, uint32_t fsize);
+State new_state(FATFS *fs, uint32_t fsize);
 PTRESULT next_codepoint(State *s);
 uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame);
 

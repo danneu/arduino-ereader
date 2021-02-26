@@ -9,12 +9,12 @@
 #include "utf8.h"
 #include "util.h"
 
-State new_state(FATFS fs, uint32_t fsize) {
-    State state = State{.fs = fs, .fsize = fsize, .buf = {0x00}, .bufidx = 64};
+State new_state(FATFS *fs, uint32_t fsize) {
+    State state = State{
+        .fs = fs, .fsize = fsize, .buf = {0x00}, .bufidx = 64, .buflen = 0};
     return state;
 }
 
-UINT actual = 64;
 // When bufidx is full, its index is 0
 // Buf empty: idx 64-1
 
@@ -38,10 +38,10 @@ PTRESULT next_codepoint(State *s) {
     // 61     3
     // 60     4    60>=60    true
     // 59     x    59>60    false
+    // serial2("next_codepoint: bufidx is", s->bufidx);
     if (64 - s->bufidx <= 4) {
         // if (s->endptr - s->buf > 4) {
         int len = 64 - s->bufidx;
-        Serial.println("BUF almost empty");
         serial2(":: BUF almost empty. len =", len);
         // serial3("len", s->bufidx, len);
         // move the bits to front of queue and splice in the rest from S
@@ -63,16 +63,19 @@ PTRESULT next_codepoint(State *s) {
         // auto res = pf_read(s->buf + len, 64 - len, &actual);
         // serial2("-> actual", actual);
 
-        auto res = pf_read(s->buf + len, 64 - len, &actual);
+        auto res = pf_read(s->buf + len, 64 - len, &s->buflen);
+        // add back the bytes at the front (memcpy step above)
+        s->buflen += len;
 
         if (res != FR_OK) {
+            // TODO
             Serial.println("prob");
         }
-        if (actual < 64) {
-            // end of book signalled
-            serial2("pf_read actual<64:", actual);
-            p.eob = true;
-        }
+        // if (actual < 64) {
+        //     // end of book signalled
+        //     serial2("pf_read actual<64:", actual);
+        //     p.eob = true;
+        // }
         // s->endptr = s->buf + actual;
         // serial2("actual", actual);
         s->bufidx = 0;
@@ -85,7 +88,7 @@ PTRESULT next_codepoint(State *s) {
     // auto res = utf8_decode(s->buf + s->bufidx, actual - s->bufidx);
     // auto res = utf8_decode(s->buf + s->bufidx, 64 - s->bufidx);
     // if p.eob == 1 and actual-s->bufidx == 0 then we're eob.
-    auto res = utf8_decode(s->buf + s->bufidx, actual - s->bufidx);
+    auto res = utf8_decode(s->buf + s->bufidx, s->buflen - s->bufidx);
     p.evt = res.evt;
     p.pt = res.pt;
     p.width = res.width;
@@ -125,6 +128,10 @@ bool pt_whitespace(uint32_t pt) {
 ////////////////////////////////////////////////////////////
 
 uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
+    serial2("lseeking to:", offset);
+    pf_lseek(offset);
+    uint32_t start_fptr = s->fs->fptr;  // do this afer the lseek
+
     uint32_t pbuf[16];
     uint8_t pid = 0;
     uint8_t y = 0;
@@ -132,48 +139,50 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
     bool eob = false;
     // uint16_t x = 0;
     uint16_t consumed = 0;
-    serial2("lseeking to:", offset);
-    pf_lseek(offset);
     pixelbuf_clear(frame);
+    uint8_t pidoffset = 0;
 
 // aka breakline()
 // if (y >= ROWS_PER_PAGE - 1) {
 //     serial1("hmm, called commitframe wheen I shouldnt");
 //     goto exit;
 // }
-#define commitframe(y)                                                  \
-    do {                                                                \
-        epd_set_partial_window(frame->buf, 0, (y * CHAR_HEIGHT), WIDTH, \
-                               CHAR_HEIGHT);                            \
-        pixelbuf_clear(frame);                                          \
-        x = 0;                                                          \
-        y++;                                                            \
+#define commitframe(y, _pidoffset)                                        \
+    do {                                                                  \
+        serial4("commitframe called, y is", y, " pidoffset:", pidoffset); \
+        pidoffset = _pidoffset;                                           \
+        epd_set_partial_window(frame->buf, 0, (y * CHAR_HEIGHT), WIDTH,   \
+                               CHAR_HEIGHT);                              \
+        pixelbuf_clear(frame);                                            \
+        x = 0;                                                            \
+        y++;                                                              \
+        if (y >= ROWS_PER_PAGE) {                                         \
+            goto bail;                                                    \
+        }                                                                 \
     } while (0)
 
     while (y < ROWS_PER_PAGE) {
+        pidoffset = 0;
+        // serial2("-- y:", y);
         // note: next_codepoint already incs bufidx
 
         // serial1("before next_codept");
         auto r = next_codepoint(s);
-        if (r.eob) {
-            eob = true;
-        }
-        if (eob && r.evt == UTF8_EOI) {
-            serial1("next_codepoint: EOB");
-            // TODO: Do I need to also wrap and do that handlig??
-            commitframe(y);
-            break;
-        }
+        consumed += r.width;
+        // consumed += r.width;
+        // if (r.eob) {
+        //     eob = true;
+        // }
         // serial1("...affer next_codept");
 
         if (r.evt == UTF8_INVALID) {
             // We consume the byte offset, but we ignore the byte
-            consumed += r.width;
+            // consumed += r.width;
         } else if (r.evt == UTF8_EOI) {
             // `next_codepoint` should be handling this for us.
             serial1("Unexpected UTF8_EOI in show_offset.");
         } else if (r.evt == UTF8_OK) {
-            consumed += r.width;
+            // consumed += r.width;
             // We collect the point
 
             if (r.pt != '\n') {
@@ -181,21 +190,33 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
             }
             // pbuf[pid++] = r.pt;
 
+            if (s->buflen < 64 && s->bufidx >= s->buflen) {
+                // serial1("next_codepoint: EOB");
+                // TODO: Do I need to also wrap and do that handlig??
+                serial2("EOB... pid is", pid);
+                // TODO: Hadle newlines/line dont fit
+                for (int i = 0; i < pid; i++) {
+                    pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
+                }
+                pid = 0;
+                commitframe(y, 0);
+                break;
+            }
+
             // \n is special case
-            // TODO: Don't add it to pbuf
             if (r.pt == '\n') {
                 serial3("next_codepoint: found NL. x, pid:", x, pid);
                 int i = 0;
                 // Finish out the rest of current line
                 // for (; i < pid && x + i < CHARS_PER_ROW; i++) {
                 for (; i < pid && x < CHARS_PER_ROW; i++) {
-                    serial3("A", x, pid);
+                    // serial3("A", x, pid);
                     pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
                 }
-                commitframe(y);
+                commitframe(y, i);
                 // Carry leftovers to next row
                 for (; i < pid; i++) {
-                    serial3("B", x, pid);
+                    // serial3("B", x, pid);
                     pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
                 }
                 pid = 0;
@@ -221,19 +242,19 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
                 // commitframe(y);
                 // continue;
             } else if (pt_whitespace(r.pt)) {
-                serial2("whitespace found", pid);
+                // serial2("whitespace found", pid);
                 // spaces are a natural break point
                 if (x + pid < CHARS_PER_ROW) {
-                    serial4("whitespace: can fit on row. x, pid, x+pid:", x,
-                            pid, x + pid);
+                    // serial4("whitespace: can fit on row. x, pid, x+pid:", x,
+                    // pid, x + pid);
                     for (int i = 0; i < pid; i++) {
                         pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
                     }
                     pid = 0;  // reset the stck
                 } else {      // we donn't all fit on one row, so break
-                    serial4("whitespace: CANNOT fit on row. x, pid, x+pid:", x,
-                            pid, x + pid);
-                    commitframe(y);
+                    // serial4("whitespace: CANNOT fit on row. x, pid, x+pid:",
+                    // x, pid, x + pid);
+                    commitframe(y, 0);
                     for (int i = 0; i < pid; i++) {
                         pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
                     }
@@ -274,14 +295,15 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
                         serial1("check math lol");
                     }
                     // Handle current row
-                    for (uint16_t i = 0; i < currRow; i++) {
+                    uint8_t i;
+                    for (i = 0; i < currRow; i++) {
                         // serial3("ps ", ps[i], i);
                         pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
                     }
-                    commitframe(y);
+                    commitframe(y, i);
                     // Handle next row
 
-                    for (uint16_t i = 0; i < nextRow; i++) {
+                    for (; i < nextRow; i++) {
                         pixelbuf_draw_unicode_glyph(frame, pbuf[i], x++);
                     }
 
@@ -294,9 +316,51 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
         }
     }
 
+bail:
+
+    // Unused decoded points
+    // for (uint8_t i = 0; i < pid; i++) {
+    //     rewind += utf8_encoded_bytesize(pbuf[i]);
+    // }
+    // Unused read buffer
+    int bytesize = 0;
+    for (int i = pidoffset; i < pid; i++) {
+        bytesize += utf8_encoded_bytesize(pbuf[i]);
+    }
+    auto actual_consumed = s->fs->fptr - start_fptr;
+    auto offset1 = actual_consumed - bytesize - (s->buflen - s->bufidx);
+    auto offset2 = consumed - bytesize - (s->buflen - s->bufidx);
+    serial2(":: bytesize of leftover pid:", bytesize);
+    serial2(":: actual consumed:", actual_consumed);
+    serial4(":: consumed:", consumed, "-> offset2", offset2);
+    serial4(":: fptr:", s->fs->fptr, "-> offset1", offset1);
+    // serial6("=== Rewinding fptr ", bytesize, "bytes from", s->fs->fptr, "to",
+    // s->fs->fptr - bytesize - (s->buflen - s->bufidx)); pf_lseek(s->fs->fptr -
+    // bytesize - (s->buflen - s->bufidx));
+
+    // pf_lseek(s->fs->fptr - rewind);
+
+    // serial4("consumed", consumed, " vs rewind ", rewind);
+
+    // Reset bufidx
+    s->bufidx = 64;
+
+    // if (pid > 0) {
+    //     uint8_t bytesize = 0;
+    //     // TODO: Return leftover from the fn, this is lame.
+    //     // rewind so that next page picks up the leftovers.
+    //     rewind += bytesize;
+    // }
+
     serial3("returning from how_ffset x y:", x, y);
     serial2("pid is: ", pid);
 
     epd_refresh();
-    return consumed;
+
+    // reset bufidx so that next pagination loads from loffset.
+
+    // return consumed - rewind;
+    // return s->fs->fptr - bytesize - (s->buflen - s->bufidx);
+    // return offset2;
+    return offset1;
 }

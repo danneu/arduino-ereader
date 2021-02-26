@@ -14,6 +14,7 @@
 pixelbuf textrow = pixelbuf_new();
 FATFS fs;
 State state;
+uint32_t offset = 0;
 
 uint8_t buttonState = HIGH;
 uint8_t lastButtonState = HIGH;
@@ -75,8 +76,9 @@ void setup() {
         Serial.print(F("\t"));
         Serial.println(fno.fsize);
         if (!strcmp(fno.fext, "TXT") &&
-            // !strcmp(fno.fname, "ARRANC~2.TXT")) {  // && fno.fsize > 100) {
-            !strcmp(fno.fname, "LABIOS.TXT")) {  // && fno.fsize > 100) {
+            !strcmp(fno.fname, "ARRANC~2.TXT")) {  // && fno.fsize > 100) {
+            // !strcmp(fno.fname, "LABIOS.TXT")) {  // && fno.fsize > 100) {
+            // !strcmp(fno.fname, "TEST.TXT")) {
             break;
         }
     }
@@ -90,8 +92,8 @@ void setup() {
 
     // For debugging end of book:
     // pf_lseek(428840);
-    state = new_state(fs, fno.fsize);
-    show_offset(&state, fs.fptr, &textrow);
+    state = new_state(&fs, fno.fsize);
+    offset = show_offset(&state, 0, &textrow);
 }
 
 void loop() {
@@ -103,12 +105,10 @@ void loop() {
     if ((millis() - lastDebounceTime) > 50) {
         if (reading != buttonState) {
             buttonState = reading;
-            serial2("Button changed", buttonState);
 
             // Now we finally handle the button state
             if (buttonState == LOW) {
-                show_offset(&state, fs.fptr, &textrow);
-                Serial.println("ok doe");
+                offset += show_offset(&state, offset, &textrow);
             }
         }
     }
