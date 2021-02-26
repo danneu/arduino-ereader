@@ -10,8 +10,13 @@
 #include "util.h"
 
 State new_state(FATFS *fs, uint32_t fsize) {
-    State state = State{
-        .fs = fs, .fsize = fsize, .buf = {0x00}, .bufidx = 64, .buflen = 0};
+    State state = State{.fs = fs,
+                        .fsize = fsize,
+                        .buf = {0x00},
+                        .bufidx = 64,
+                        .buflen = 0,
+                        .history = {0x00},
+                        .hid = -1};
     return state;
 }
 
@@ -42,7 +47,7 @@ PTRESULT next_codepoint(State *s) {
     if (64 - s->bufidx <= 4) {
         // if (s->endptr - s->buf > 4) {
         int len = 64 - s->bufidx;
-        serial2(":: BUF almost empty. len =", len);
+        // serial2(":: BUF almost empty. len =", len);
         // serial3("len", s->bufidx, len);
         // move the bits to front of queue and splice in the rest from S
         // card
@@ -147,18 +152,17 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
 //     serial1("hmm, called commitframe wheen I shouldnt");
 //     goto exit;
 // }
-#define commitframe(y, _pidoffset)                                        \
-    do {                                                                  \
-        serial4("commitframe called, y is", y, " pidoffset:", pidoffset); \
-        pidoffset = _pidoffset;                                           \
-        epd_set_partial_window(frame->buf, 0, (y * CHAR_HEIGHT), WIDTH,   \
-                               CHAR_HEIGHT);                              \
-        pixelbuf_clear(frame);                                            \
-        x = 0;                                                            \
-        y++;                                                              \
-        if (y >= ROWS_PER_PAGE) {                                         \
-            goto bail;                                                    \
-        }                                                                 \
+#define commitframe(y, _pidoffset)                                      \
+    do {                                                                \
+        pidoffset = _pidoffset;                                         \
+        epd_set_partial_window(frame->buf, 0, (y * CHAR_HEIGHT), WIDTH, \
+                               CHAR_HEIGHT);                            \
+        pixelbuf_clear(frame);                                          \
+        x = 0;                                                          \
+        y++;                                                            \
+        if (y >= ROWS_PER_PAGE) {                                       \
+            goto bail;                                                  \
+        }                                                               \
     } while (0)
 
     while (y < ROWS_PER_PAGE) {
@@ -205,7 +209,7 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
 
             // \n is special case
             if (r.pt == '\n') {
-                serial3("next_codepoint: found NL. x, pid:", x, pid);
+                // serial3("next_codepoint: found NL. x, pid:", x, pid);
                 int i = 0;
                 // Finish out the rest of current line
                 // for (; i < pid && x + i < CHARS_PER_ROW; i++) {
@@ -330,10 +334,11 @@ bail:
     auto actual_consumed = s->fs->fptr - start_fptr;
     auto offset1 = actual_consumed - bytesize - (s->buflen - s->bufidx);
     auto offset2 = consumed - bytesize - (s->buflen - s->bufidx);
-    serial2(":: bytesize of leftover pid:", bytesize);
-    serial2(":: actual consumed:", actual_consumed);
-    serial4(":: consumed:", consumed, "-> offset2", offset2);
-    serial4(":: fptr:", s->fs->fptr, "-> offset1", offset1);
+    // serial2(":: bytesize of leftover pid:", bytesize);
+    // serial2(":: actual consumed:", actual_consumed);
+    // serial4(":: consumed:", consumed, "-> offset2", offset2);
+    // serial4(":: fptr:", s->fs->fptr, "-> offset1", offset1);
+
     // serial6("=== Rewinding fptr ", bytesize, "bytes from", s->fs->fptr, "to",
     // s->fs->fptr - bytesize - (s->buflen - s->bufidx)); pf_lseek(s->fs->fptr -
     // bytesize - (s->buflen - s->bufidx));
@@ -352,8 +357,8 @@ bail:
     //     rewind += bytesize;
     // }
 
-    serial3("returning from how_ffset x y:", x, y);
-    serial2("pid is: ", pid);
+    // serial3("returning from how_ffset x y:", x, y);
+    // serial2("pid is: ", pid);
 
     epd_refresh();
 
@@ -363,4 +368,33 @@ bail:
     // return s->fs->fptr - bytesize - (s->buflen - s->bufidx);
     // return offset2;
     return offset1;
+}
+
+uint32_t next_page(State *s, pixelbuf *frame) {
+    auto start = s->fs->fptr;
+    auto diff = show_offset(s, start, frame);
+    pf_lseek(start + diff);
+
+    // Push to history
+    if (s->hid >= 16 - 1) {
+        // TODO: Check/fix
+        for (int i = 0; i < 16 - 1; i++) {
+            s->history[i] = s->history[i + 1];
+        }
+        s->history[15] = start;
+    } else {
+        s->history[++s->hid] = start;
+    }
+
+    return diff;
+}
+
+void prev_page(State *s, pixelbuf *frame) {
+    if (s->hid - 1 < 0) {
+        return;
+    } else {
+        auto start = s->history[--s->hid];
+        auto diff = show_offset(s, start, frame);
+        pf_lseek(start + diff);
+    }
 }

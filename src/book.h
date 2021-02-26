@@ -36,15 +36,17 @@ typedef struct State {
     uint8_t buf[64];
     uint8_t bufidx;
     UINT buflen;
-    // uint8_t *endptr;
-    //
-    // uint32_t pbuf[16];
-    // uint8_t pidx;
+
+    // Page offset history
+    uint32_t history[16];
+    int8_t hid;
 } Struct;
 
 State new_state(FATFS *fs, uint32_t fsize);
 PTRESULT next_codepoint(State *s);
-uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame);
+// uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame);
+uint32_t next_page(State *s, pixelbuf *frame);
+void prev_page(State *s, pixelbuf *frame);
 
 #ifdef __cplusplus
 }

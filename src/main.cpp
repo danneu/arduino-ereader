@@ -16,6 +16,7 @@ FATFS fs;
 State state;
 uint32_t offset = 0;
 
+uint32_t buttonDownAt;  // millis of keydown start
 uint8_t buttonState = HIGH;
 uint8_t lastButtonState = HIGH;
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
@@ -93,7 +94,10 @@ void setup() {
     // For debugging end of book:
     // pf_lseek(428840);
     state = new_state(&fs, fno.fsize);
-    offset = show_offset(&state, 0, &textrow);
+    // offset = show_offset(&state, 0, &textrow);
+    // auto diff = show_offset(&state, 0, &textrow);
+    // fs.fptr = diff;
+    next_page(&state, &textrow);
 }
 
 void loop() {
@@ -106,17 +110,28 @@ void loop() {
         if (reading != buttonState) {
             buttonState = reading;
 
-            // Now we finally handle the button state
             if (buttonState == LOW) {
-                offset += show_offset(&state, offset, &textrow);
+                // Pressing
+                buttonDownAt = millis();
+            } else {
+                // Releasing
+                auto buttonDuration = millis() - buttonDownAt;
+                if (buttonDuration <= 300) {
+                    // Short press: Next page
+                    // offset += show_offset(&state, offset, &textrow);
+                    next_page(&state, &textrow);
+                }
+            }
+        } else if (reading == LOW) {
+            // Still holding down
+            if (millis() - buttonDownAt > 300) {
+                // offset -= 900;
+                // show_offset(&state, offset, &textrow);
+                prev_page(&state, &textrow);
             }
         }
     }
-    // // if (buttonState == 1) {
-    // //     Serial.println("PRESSED");
-    // // } else {
-    // // }
-    // // _delay_ms(20);
 
+    // End of loop
     lastButtonState = reading;
 }
