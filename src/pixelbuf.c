@@ -24,7 +24,8 @@ void pixelbuf_draw_horiz(pixelbuf *p, uint8_t y) {
 void pixelbuf_draw_progress(pixelbuf *p, double ratio) {
     ratio = min(max(ratio, 0.0), 1.0);  // clamp to 0..1
     double limit = ratio * WIDTH / 8;
-    uint8_t y = 11;
+    uint8_t y = 11;  // max value of y that appears in last row
+    uint8_t thickness = 3;
 
     uint8_t partial;
     switch ((int)round((limit - (int)limit) * 8)) {
@@ -61,9 +62,13 @@ void pixelbuf_draw_progress(pixelbuf *p, double ratio) {
     }
     for (uint16_t x = 0; x < WIDTH / 8; x++) {
         if (x < (int)limit) {
-            p->buf[WIDTH / 8 * y + x] = 0x00;
+            for (uint8_t t = 0; t < thickness; t++) {
+                p->buf[WIDTH / 8 * (y - t) + x] = 0x00;
+            }
         } else if (x < ceil(limit)) {
-            p->buf[WIDTH / 8 * y + x] = partial;
+            for (uint8_t t = 0; t < thickness; t++) {
+                p->buf[WIDTH / 8 * (y - t) + x] = partial;
+            }
         } else {
             break;
         }
