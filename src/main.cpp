@@ -65,9 +65,7 @@ void setup() {
         Serial.print(F("\t"));
         Serial.println(fno.fsize);
         if (!strcmp(fno.fext, "TXT") && !(fno.fattrib & AM_DIR) &&
-            !strcmp(fno.fname, "ARRANC~2.TXT")) {  // && fno.fsize > 100) {
-            // !strcmp(fno.fname, "LABIOS.TXT")) {  // && fno.fsize > 100) {
-            // !strcmp(fno.fname, "TEST.TXT")) {
+            !strcmp(fno.fname, FILENAME)) {
             break;
         }
     }
@@ -82,7 +80,7 @@ void setup() {
     // offset = show_offset(&state, 0, &textrow);
     // auto diff = show_offset(&state, 0, &textrow);
     // fs.fptr = diff;
-    next_page(&state, &textrow);
+    book_next_page(&state, &textrow);
 
     epd_slow_clockspeed();
     epd_set_lut(LUT_PARTIAL);
@@ -106,16 +104,12 @@ void loop() {
                 auto buttonDuration = millis() - buttonDownAt;
                 if (buttonDuration <= 300) {
                     // Short press: Next page
-                    // offset += show_offset(&state, offset, &textrow);
-                    next_page(&state, &textrow);
+                    book_next_page(&state, &textrow);
                 }
             }
         } else if (reading == LOW) {
-            // Still holding down
             if (millis() - buttonDownAt > 300) {
-                // offset -= 900;
-                // show_offset(&state, offset, &textrow);
-                prev_page(&state, &textrow);
+                book_prev_page(&state, &textrow);
             }
         }
     }

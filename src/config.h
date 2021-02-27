@@ -3,6 +3,10 @@
 
 #define GLYPHS_ON 1
 
+// #define FILENAME "TEST.TXT"
+// #define FILENAME "LABIOS.TXT"
+#define FILENAME "ARRANC~2.TXT"
+
 #define LEFT_MARGIN (1 * CHAR_WIDTH)
 #define EPD_WIDTH 400
 #define EPD_HEIGHT 300

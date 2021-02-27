@@ -42,8 +42,10 @@ typedef struct State {
 State new_state(FATFS *fs, uint32_t fsize);
 PTRESULT next_codepoint(State *s);
 // uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame);
-uint32_t next_page(State *s, pixelbuf *frame);
-void prev_page(State *s, pixelbuf *frame);
+uint32_t book_getoffset(State *s);
+void book_goto_beginning(State *s, pixelbuf *frame);
+void book_next_page(State *s, pixelbuf *frame);
+void book_prev_page(State *s, pixelbuf *frame);
 void abort_with_ferror(FRESULT res, pixelbuf *frame);
 void abort_with_error(const char *line, pixelbuf *frame);
 void abort_with_error(const __FlashStringHelper *line, pixelbuf *frame);

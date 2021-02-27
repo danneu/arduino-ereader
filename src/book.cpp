@@ -203,6 +203,10 @@ bool pt_whitespace(uint32_t pt) {
 ////////////////////////////////////////////////////////////
 
 uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
+    if (offset >= s->fs->fsize) {
+        serial1(F("Not paginating because offset==fsize. Bailing..."));
+        return 0;
+    }
     serial2(F("lseeking to:"), offset);
     pf_lseek(offset);
     uint32_t start_fptr = s->fs->fptr;  // do this afer the lseek
@@ -280,6 +284,7 @@ uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
                 int i = 0;
 
                 // Ignore leading NL on a page
+                // FIXME: Sloppy
                 // if (pid == 1 && y == 0) {
                 //     y -= 1;
                 //     x = 0;
@@ -424,10 +429,20 @@ bail:
     return offset1;
 }
 
-uint32_t next_page(State *s, pixelbuf *frame) {
+////////////////////////////////////////////////////////////
+// Main API
+
+void book_goto_beginning(State *s, pixelbuf *frame) {
+    auto res = pf_lseek(0);
+    if (res) abort_with_ferror(res, frame);
+    return book_next_page(s, frame);
+}
+
+void book_next_page(State *s, pixelbuf *frame) {
     auto start = s->fs->fptr;
     auto diff = show_offset(s, start, frame);
-    pf_lseek(start + diff);
+    auto res = pf_lseek(start + diff);
+    if (res) abort_with_ferror(res, frame);
 
     // Push to history
     if (s->hid >= PAGE_HISTORY_LEN - 1) {
@@ -440,15 +455,18 @@ uint32_t next_page(State *s, pixelbuf *frame) {
         s->history[++s->hid] = start;
     }
 
-    return diff;
+    // return diff;
 }
 
-void prev_page(State *s, pixelbuf *frame) {
+void book_prev_page(State *s, pixelbuf *frame) {
     if (s->hid - 1 < 0) {
         return;
     } else {
         auto start = s->history[--s->hid];
         auto diff = show_offset(s, start, frame);
-        pf_lseek(start + diff);
+        auto res = pf_lseek(start + diff);
+        if (res) abort_with_ferror(res, frame);
     }
 }
+
+uint32_t book_getoffset(State *s) { return s->fs->fptr; }
