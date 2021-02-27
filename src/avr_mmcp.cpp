@@ -2,7 +2,6 @@
 /* PFF - Low level disk control module for AVR            (C)ChaN, 2014    */
 /*-------------------------------------------------------------------------*/
 
-#include <Arduino.h>
 #include <diskio.h>
 
 #include "spi.h"
@@ -19,7 +18,7 @@
 #define IS_CS_LOW !(PIND & (1 << 5)) /* Test if CS is low */
 #define FORWARD(d) xmit(d)           /* Data streaming function (console out) */
 
-#define xmit(char) Serial.write(char)
+#define xmit(char) (void)0
 #define dly_100us() _delay_us(100)  // delayMicroseconds(100)
 #define init_spi() (void)0
 #define xmit_spi(byte) spi_xfer(byte)
