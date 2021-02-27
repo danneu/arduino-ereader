@@ -1,6 +1,7 @@
 #include "book.h"
 
 #include <Arduino.h>
+#include <avr/pgmspace.h>
 
 #include "config.h"
 #include "epd.h"
@@ -202,7 +203,7 @@ bool pt_whitespace(uint32_t pt) {
 
 ////////////////////////////////////////////////////////////
 
-uint16_t show_offset(State *s, uint32_t offset, pixelbuf *frame) {
+uint16_t book_goto_offset(State *s, uint32_t offset, pixelbuf *frame) {
     if (offset >= s->fs->fsize) {
         serial1(F("Not paginating because offset==fsize. Bailing..."));
         return 0;
@@ -432,6 +433,70 @@ bail:
 ////////////////////////////////////////////////////////////
 // Main API
 
+int book_readloc(State *s, uint32_t *storedOffset, pixelbuf *frame) {
+    FRESULT res;
+    UINT br;
+
+    char buf[9];
+    buf[8] = 0;
+
+    res = pf_lseek(0);
+    if (res) abort_with_ferror(res, frame);
+
+    res = pf_read(buf, 8, &br);
+    if (res) abort_with_ferror(res, frame);
+    if (br != 8) abort_with_error(F("Error reading loc"), frame);
+    serial2("buf:", buf);
+    if (strcmp_PF(buf, PSTR("danbook:"))) {
+        // we've never saved a loc
+        return 1;
+    }
+
+    res = pf_read(storedOffset, 4, &br);
+    if (res) abort_with_ferror(res, frame);
+    if (br != 4) abort_with_error(F("Error reading loc"), frame);
+    serial3(F("book_readloc:"), *storedOffset, F("byte offset"));
+    return 0;
+}
+
+void book_storeloc(State *s, uint32_t offsetToSave, pixelbuf *frame) {
+    FRESULT res;
+    UINT br;
+
+    // Save old sector
+    res = pf_lseek(0);
+    if (res) abort_with_ferror(res, frame);
+    char old[512];
+    res = pf_read(old, 512, &br);
+    if (res) abort_with_ferror(res, frame);
+    if (br != 512) abort_with_error(F("Could not read 512 OLD sector"), frame);
+
+    // Overwrite sector
+    res = pf_lseek(0);
+    if (res) abort_with_ferror(res, frame);
+    for (int i = 0; i < 512 / 4; i++) {
+        if (i == 0) {
+            serial1("a");
+            // res = pf_write(&(uint8_t []){'d', 'a', 'n', 'b'}, 4, &br);
+            res = pf_write(&"danb", 4, &br);
+        } else if (i == 1) {
+            serial1("b");
+            // res = pf_write(&((char[]){'o', 'o', 'k', ':'}), 4, &br);
+            res = pf_write(&"ook:", 4, &br);
+        } else if (i == 2) {
+            serial1("c");
+            res = pf_write(&offsetToSave, 4, &br);
+        } else {
+            res = pf_write(old + i * 4, 4, &br);
+        }
+        if (res) abort_with_ferror(res, frame);
+        if (br != 4) abort_with_error(F("Could not write loc"), frame);
+    }
+    // if (br != 4) abort_with_error(F("Could not write to SD card."), frame);
+    res = pf_write(0, 0, &br);
+    if (res) abort_with_ferror(res, frame);
+}
+
 void book_goto_beginning(State *s, pixelbuf *frame) {
     auto res = pf_lseek(0);
     if (res) abort_with_ferror(res, frame);
@@ -439,8 +504,9 @@ void book_goto_beginning(State *s, pixelbuf *frame) {
 }
 
 void book_next_page(State *s, pixelbuf *frame) {
-    auto start = s->fs->fptr;
-    auto diff = show_offset(s, start, frame);
+    uint32_t start = s->fs->fptr;
+    book_storeloc(s, start, frame);
+    auto diff = book_goto_offset(s, start, frame);
     auto res = pf_lseek(start + diff);
     if (res) abort_with_ferror(res, frame);
 
@@ -462,8 +528,9 @@ void book_prev_page(State *s, pixelbuf *frame) {
     if (s->hid - 1 < 0) {
         return;
     } else {
-        auto start = s->history[--s->hid];
-        auto diff = show_offset(s, start, frame);
+        uint32_t start = s->history[--s->hid];
+        book_storeloc(s, start, frame);
+        auto diff = book_goto_offset(s, start, frame);
         auto res = pf_lseek(start + diff);
         if (res) abort_with_ferror(res, frame);
     }

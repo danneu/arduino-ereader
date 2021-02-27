@@ -23,7 +23,6 @@ uint32_t buttonDownAt;  // millis of keydown start
 uint8_t buttonState = HIGH;
 uint8_t lastButtonState = HIGH;
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
-// the debounce time; increase if the output flickers
 
 void setup() {
     Serial.begin(9600);
@@ -74,12 +73,21 @@ void setup() {
     res = pf_open(fno.fname);
     if (res) abort_with_ferror(res, &textrow);
 
+    // Read loc where we left off
+    uint32_t storedLoc;
+    auto n = book_readloc(&state, &storedLoc, &textrow);
+    if (n == 0) {
+        // res = pf_lseek(storedLoc);
+        // if (res) abort_with_ferror(res, &textrow);
+    }
+
     // For debugging end of book:
     // pf_lseek(428840);
     state = new_state(&fs, fno.fsize);
     // offset = show_offset(&state, 0, &textrow);
     // auto diff = show_offset(&state, 0, &textrow);
     // fs.fptr = diff;
+
     book_next_page(&state, &textrow);
 
     epd_slow_clockspeed();
