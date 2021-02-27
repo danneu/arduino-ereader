@@ -296,6 +296,13 @@ void epd_deep_sleep() {
     epd_data(0xa5);
 }
 
+// My fast-update LUT_PARTIAL mode works well at low speeds. e.g. The text
+// remains crisp and black when the display is slow while faster clockspeeds
+// make the text faint and ghosting. but anything
+//
+// However, everything other than fast-update is super slower at 50MHz.
+// I'm experimenting with booting the display with a fast clock and then
+// toggling it into 50MHz during the pagination loop.
 void epd_slow_clockspeed() {
     epd_cmd(PLL_CONTROL);
     epd_data(0x3c);  // 50

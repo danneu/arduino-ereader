@@ -60,5 +60,5 @@ uint8_t utf8_encoded_bytesize(uint32_t pt) {
     if (pt <= 0x7ff) return 2;
     if (pt <= 0xffff) return 3;
     if (pt <= 0x10ffff) return 4;
-    return 0;  // Invalid unicode point...
+    return 0;  // Invalid unicode point
 }

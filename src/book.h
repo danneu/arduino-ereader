@@ -49,7 +49,7 @@ void book_prev_page(State *s, pixelbuf *frame);
 void abort_with_ferror(FRESULT res, pixelbuf *frame);
 void abort_with_error(const char *line, pixelbuf *frame);
 void abort_with_error(const __FlashStringHelper *line, pixelbuf *frame);
-void book_storeloc(State *s, uint32_t offsetToSave, pixelbuf *frame);
-uint8_t book_readloc(State *s, uint32_t *storedOffset, pixelbuf *frame);
+// void book_storeloc(State *s, uint32_t offsetToSave, pixelbuf *frame);
+// uint8_t book_readloc(State *s, uint32_t *storedOffset, pixelbuf *frame);
 
 #endif

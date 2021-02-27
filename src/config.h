@@ -2,10 +2,11 @@
 #define config_h
 
 #define GLYPHS_ON 1
+#define SERIAL_ON 0
 
 // #define FILENAME "TEST.TXT"
 // #define FILENAME "LABIOS.TXT"
-#define FILENAME "ARRANC~2.TXT"
+#define FILENAME "A1.TXT"
 
 #define LEFT_MARGIN (1 * CHAR_WIDTH)
 #define EPD_WIDTH 400

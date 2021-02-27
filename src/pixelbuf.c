@@ -27,6 +27,7 @@ void pixelbuf_draw_progress(pixelbuf *p, double ratio) {
     uint8_t y = 11;  // max value of y that appears in last row
     uint8_t thickness = 3;
 
+    // 0=black, 1=white.
     uint8_t partial;
     switch ((int)round((limit - (int)limit) * 8)) {
         case 0:
@@ -76,7 +77,8 @@ void pixelbuf_draw_progress(pixelbuf *p, double ratio) {
 }
 
 void pixelbuf_draw_unicode_glyph(pixelbuf *p, uint32_t pt, uint8_t idx) {
-    // FIXME: Crappy hack
+    // FIXME: Lame hack to create a left-margin gutter so the text doesn't sit
+    // flush against the side of display.
     idx++;
 
     uint8_t glyph[16];
