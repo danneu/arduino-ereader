@@ -7,11 +7,6 @@ const text = fs.readFileSync(require('path').join(__dirname, './unifont-11.0.02.
 const CONFIG = {
     w: 8, // px
     h: 16,
-    empty() {
-        return Array.from({ length: this.h * 2 })
-            .map(() => '0')
-            .join('')
-    },
 }
 
 const ranges = [
@@ -19,14 +14,18 @@ const ranges = [
     // start at space (32) instead of 0x0000
     [32, 0x007f],
     // C1 Controls and Latin-1 Supplement
-    [0x0080, 0x00ff],
+    // [0x0080, 0x00ff],
+    [160, 0x00ff],
     // Latin Extended - A
     [0x0100, 0x017f],
     // Latin Extended - B
     [0x0180, 0x024f],
     // General Punctuation
-    [0x2000, 0x206f],
+    // [0x2000, 0x206f],
+    [0x2000, 8287],
 ]
+
+const emptyIds = new Set()
 
 // a mapping of rangeidx to [glyphs]
 const glyphs = {}
@@ -40,15 +39,20 @@ for (const line of text.split('\n')) {
     let [id, data] = line.split(':')
     if (!data) continue
     id = Number.parseInt(id, 16)
+    let bytes = data.match(/.{1,2}/g).map((s) => Number.parseInt(s, 16))
 
     let rangeidx = 0
     for (const [min, max] of ranges) {
         if (id >= min && id <= max) {
-            if (data.length > CONFIG.h * 2) {
+            if (bytes.length > CONFIG.h) {
                 empties++
-                data = CONFIG.empty()
+                bytes = []
+                emptyIds.add(id)
             }
-            glyphs[rangeidx].push(data)
+            glyphs[rangeidx].push({
+                id,
+                bytes,
+            })
             break
         }
         rangeidx++
@@ -72,7 +76,7 @@ for (const line of text.split('\n')) {
 }
 console.log('empties', empties)
 
-const fd = fs.openSync(join(__dirname, './glyphs.c'), 'w')
+const fd = fs.openSync(join(__dirname, '../src/glyphs.c'), 'w')
 fs.ftruncateSync(fd)
 const append = (str) => fs.writeFileSync(fd, str, 'utf8', 'as')
 
@@ -88,12 +92,9 @@ append('\n')
 for (const [rangeidx, gs] of Object.entries(glyphs)) {
     i = 0
     for (const glyph of gs) {
-        const bytes = glyph
-            .match(/.{1,2}/g)
-            .map((x) => '0x' + x)
-            .join(',')
+        const hex = glyph.bytes.map((s) => '0x' + s.toString(16).padStart(2, '0')).join(',')
         // const uint8_t glyph0[16] PROGMEM = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-        append(`const uint8_t glyph_${rangeidx}_${i}[${CONFIG.h}] PROGMEM = {${bytes}};\n`)
+        append(`const uint8_t glyph_${rangeidx}_${glyph.id}[${glyph.bytes.length}] PROGMEM = {${hex}};\n`)
         i++
     }
 
@@ -101,7 +102,7 @@ for (const [rangeidx, gs] of Object.entries(glyphs)) {
 
     append(`\n\nconst uint8_t *const glyphs_${rangeidx}[${gs.length}] PROGMEM = {\n\t`)
     for (let i = 0; i < gs.length; i++) {
-        append(`glyph_${rangeidx}_${i}`)
+        append(`glyph_${rangeidx}_${gs[i].id}`)
         append(i < gs.length - 1 ? ', ' : '\n')
         if (i > 0 && i % 8 == 0) append('\n\t')
     }
@@ -165,12 +166,15 @@ int get_glyph(uint32_t codepoint, uint8_t idx, uint8_t * buf) {
 
 ////////////////////////////////////////////////////////////
 
-append(`\nuint8_t get_glyph(uint32_t codepoint, uint8_t buf[16]) {\n`)
+append(`\nuint8_t get_glyph(uint32_t pt, uint8_t buf[16]) {\n`)
+for (const id of emptyIds) {
+    append(`if (pt == ${id}) return 1;\n`)
+}
 for (const [rangeidx, gs] of Object.entries(glyphs)) {
     const [min, max] = ranges[rangeidx]
     append(rangeidx === '0' ? '\tif ' : '\t} else if ')
-    append(`(${min === 0 ? '' : `codepoint >= ${min} && `}codepoint <= ${max}) {\n`)
-    append(`\t\tmemcpy_P(buf, pgm_read_word(&(glyphs_${rangeidx}[codepoint-${min}])), 16);\n`)
+    append(`(${min === 0 ? '' : `pt >= ${min} && `}pt <= ${max}) {\n`)
+    append(`\t\tmemcpy_P(buf, (void *)pgm_read_word(&(glyphs_${rangeidx}[pt-${min}])), 16);\n`)
     append(`\t\treturn 0;\n`)
 }
 append(`\t} else {\n\t\treturn 1;\n\t}\n`)

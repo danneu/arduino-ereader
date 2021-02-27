@@ -74,12 +74,12 @@ void setup() {
     if (res) abort_with_ferror(res, &textrow);
 
     // Read loc where we left off
-    uint32_t storedLoc;
-    auto n = book_readloc(&state, &storedLoc, &textrow);
-    if (n == 0) {
-        // res = pf_lseek(storedLoc);
-        // if (res) abort_with_ferror(res, &textrow);
-    }
+    // uint32_t storedLoc;
+    // auto n = book_readloc(&state, &storedLoc, &textrow);
+    // if (n == 0) {
+    //     // res = pf_lseek(storedLoc);
+    //     // if (res) abort_with_ferror(res, &textrow);
+    // }
 
     // For debugging end of book:
     // pf_lseek(428840);
