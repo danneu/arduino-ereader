@@ -7,11 +7,7 @@
 
 pixelbuf pixelbuf_new() { return (pixelbuf){{0xff}}; }
 
-void pixelbuf_clear(pixelbuf *p) {
-    for (uint16_t i = 0; i < TEXTROW_BUFSIZE; i++) {
-        p->buf[i] = 0xff;
-    }
-}
+void pixelbuf_clear(pixelbuf *p) { memset(p->buf, 0xff, TEXTROW_BUFSIZE); }
 
 // y is 0..CHAR_HEIGHT
 void pixelbuf_draw_horiz(pixelbuf *p, uint8_t y) {

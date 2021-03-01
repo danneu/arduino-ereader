@@ -55,6 +55,7 @@ UTF8Result utf8_decode(uint8_t *s, uint16_t inputlen) {
     return d;
 }
 
+// Calculates the number of bytes needed to utf-8 encoded the given codepoint.
 uint8_t utf8_encoded_bytesize(uint32_t pt) {
     if (pt <= 0x7f) return 1;
     if (pt <= 0x7ff) return 2;

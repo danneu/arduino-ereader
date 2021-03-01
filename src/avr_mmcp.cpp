@@ -24,6 +24,8 @@
 #define xmit_spi(byte) spi_xfer(byte)
 #define rcv_spi() spi_recv()
 
+// I haven't modified anything below this line.
+
 /*--------------------------------------------------------------------------
 
    Module Private Functions

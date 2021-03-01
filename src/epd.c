@@ -131,19 +131,21 @@ void wait_until_idle() {
 }
 
 void epd_cmd(uint8_t cmd) {
+    digitalWrite(EPD_CS_PIN, HIGH);
+    digitalWrite(EPD_DC_PIN, LOW);
     digitalWrite(EPD_CS_PIN, LOW);
 
-    digitalWrite(EPD_DC_PIN, LOW);
     spi_xfer(cmd);
-    digitalWrite(EPD_DC_PIN, HIGH);
+    // digitalWrite(EPD_DC_PIN, HIGH);
 
     digitalWrite(EPD_CS_PIN, HIGH);
 }
 
 void epd_data(uint8_t data) {
+    digitalWrite(EPD_CS_PIN, HIGH);
+    digitalWrite(EPD_DC_PIN, HIGH);
     digitalWrite(EPD_CS_PIN, LOW);
 
-    digitalWrite(EPD_DC_PIN, HIGH);
     spi_xfer(data);
 
     digitalWrite(EPD_CS_PIN, HIGH);
@@ -158,11 +160,10 @@ void epd_refresh() {
 
 // Whites out both of the display's internal pixel buffers
 void epd_clear() {
-    uint16_t i;
     epd_cmd(DATA_START_TRANSMISSION_1);
-    for (i = 0; i < EPD_WIDTH / 8 * EPD_HEIGHT; i++) epd_data(0xff);
+    for (int i = EPD_WIDTH / 8 * EPD_HEIGHT; i--;) epd_data(0xff);
     epd_cmd(DATA_START_TRANSMISSION_2);
-    for (i = 0; i < EPD_WIDTH / 8 * EPD_HEIGHT; i++) epd_data(0xff);
+    for (int i = EPD_WIDTH / 8 * EPD_HEIGHT; i--;) epd_data(0xff);
 
     epd_cmd(DISPLAY_REFRESH);
     _delay_ms(100);
@@ -286,9 +287,7 @@ void epd_deep_sleep() {
 
     // VG&VS to 0V fast
     epd_cmd(POWER_SETTING);
-    for (uint8_t i = 0; i < 5; i++) {
-        epd_data(0x00);
-    }
+    for (int i = 5; i--;) epd_data(0x00);
 
     epd_cmd(POWER_OFF);
     wait_until_idle();
