@@ -1,5 +1,7 @@
 # Dan's Arduino E-Reader
 
+![image of arduino + lcd screen setup working](./demo.jpg)
+
 My 4.2" e-ink reader built with C on the Arduino.
 
 I impulse purchased an Arduino hoping to learn some C and hardware, and I figured an e-ink display might be fun to hack on. Sure enough, it was.
